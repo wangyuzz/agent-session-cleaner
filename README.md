@@ -1,15 +1,16 @@
 # agent-session-cleaner
 
-翻看和清理 Codex、Claude Code 攒下来的历史会话。
+在终端中浏览和清理 Codex、Claude Code 的历史会话。
 
-左边是会话列表，右边是选中会话的对话内容，两边都能滚。看到没用的，按一下键就归档或删掉。
+![example](./example.png)
 
 ## 安装
 
 ```bash
-git pull https://github.com/haowang02/agent-session-cleaner
+git clone https://github.com/haowang02/agent-session-cleaner
 cd agent-session-cleaner
 uv tool install .
+# 提前安装 uv https://github.com/astral-sh/uv
 ```
 
 ## 使用
@@ -20,7 +21,7 @@ agent-session-cleaner
 
 ## 快捷键
 
-底部列出当前能用的键，不用记（终端窗口太窄时，最后一两个会放不下）。
+底部列出当前能用的键，不用记。
 
 | 键 | 作用 |
 |---|---|
