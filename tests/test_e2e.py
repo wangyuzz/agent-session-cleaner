@@ -1183,7 +1183,10 @@ async def test_footer_fits(codex_home: Path, claude_home: Path) -> None:
                 visible = [str(k.render()).strip() for k in keys if k.region.right <= width]
                 needed = max(k.region.right for k in keys)
                 if width == 100:
-                    check(needed <= width, f"{label} 在 {width} 列下按键全部显示（需要 {needed} 列）")
+                    check(
+                        needed <= width,
+                        f"{label} 在 {width} 列下按键全部显示（需要 {needed} 列）",
+                    )
                 check(
                     any(v.startswith("q ") for v in visible),
                     f"{label} 在 {width} 列下退出键仍然可见",

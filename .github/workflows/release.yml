@@ -1,0 +1,183 @@
+name: 发布
+
+# 打一个 v 开头的标签就会构建四个平台的可执行文件并发到 Release 页面。
+# 手动触发只构建、不发布，方便在动真格之前先看看能不能过。
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+
+jobs:
+  check:
+    name: 检查
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v9
+
+      - name: 代码风格
+        run: uvx ruff check .
+
+      # --with . 把包真的装一遍，打包那节才有东西可查；--no-project 是为了
+      # 不在仓库里留下一个 uv.lock。跑不到的部分（比如没装 codex）会自己跳过。
+      - name: 测试
+        run: uv run --python 3.12 --no-project --with . tests/test_e2e.py
+
+      # 版本号只写在 __init__.py 里，标签是手打的，两者对不上就会发出一个
+      # 自称是别的版本的包。这里拦住，总比发出去之后再撤要好。
+      - name: 标签和版本号一致
+        if: github.ref_type == 'tag'
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME#v}"
+          version=$(python3 -c "import re, pathlib; \
+            text = pathlib.Path('src/agent_session_cleaner/__init__.py').read_text(); \
+            print(re.search(r'__version__ = \"([^\"]+)\"', text).group(1))")
+          if [ "$tag" != "$version" ]; then
+            echo "标签 $GITHUB_REF_NAME 和代码里的版本号 $version 对不上" >&2
+            exit 1
+          fi
+          echo "版本号 $version"
+
+  macos:
+    name: macOS ${{ matrix.arch }}
+    needs: check
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x86_64
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v9
+
+      # 构建脚本自己会把产物拉起来跑一遍：列表、详情、按 q 退出。
+      - name: 构建
+        run: ./scripts/build.sh
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: agent-session-cleaner-macos-${{ matrix.arch }}
+          path: dist/agent-session-cleaner-macos-${{ matrix.arch }}
+          if-no-files-found: error
+
+  linux:
+    name: Linux ${{ matrix.arch }}
+    needs: check
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            platform: linux/amd64
+            arch: x86_64
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            arch: arm64
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+
+      # 跑的是仓库里那份 Dockerfile，和本地 docker buildx 的命令一模一样，
+      # 所以在自己机器上验过的东西，这里不会变个样子。两种架构都用同架构的
+      # 机器原生构建，不走模拟。
+      - name: 构建
+        run: |
+          docker buildx build \
+            --platform ${{ matrix.platform }} \
+            --target export \
+            --output type=local,dest=dist \
+            .
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: agent-session-cleaner-linux-${{ matrix.arch }}
+          path: dist/agent-session-cleaner-linux-${{ matrix.arch }}
+          if-no-files-found: error
+
+  release:
+    name: 发到 Release
+    if: github.ref_type == 'tag'
+    needs: [macos, linux]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          pattern: agent-session-cleaner-*
+          merge-multiple: true
+
+      - name: 校验和
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum agent-session-cleaner-* > checksums.txt
+          cat checksums.txt
+
+      - name: 写发布说明
+        run: |
+          set -euo pipefail
+          # 引号包住的 heredoc 不做任何替换，Markdown 里的反引号才能原样留下；
+          # 标签随后用 sed 填进去。
+          cat > notes.tmpl <<'MARKDOWN'
+          挑对应的文件下载，加上执行权限就能用，不需要装 Python。
+
+          | 系统 | 芯片 | 文件 |
+          |---|---|---|
+          | macOS | Apple 芯片 | `agent-session-cleaner-macos-arm64` |
+          | macOS | Intel | `agent-session-cleaner-macos-x86_64` |
+          | Linux | arm64 | `agent-session-cleaner-linux-arm64` |
+          | Linux | x86_64 | `agent-session-cleaner-linux-x86_64` |
+
+          ```bash
+          curl -L -o agent-session-cleaner \
+            https://github.com/haowang02/agent-session-cleaner/releases/download/__TAG__/agent-session-cleaner-macos-arm64
+          chmod +x agent-session-cleaner
+          ./agent-session-cleaner
+          ```
+
+          macOS 上如果是用浏览器下的，第一次会被系统拦住，执行一次
+          `xattr -d com.apple.quarantine agent-session-cleaner` 再运行就好。
+
+          Linux 版在 glibc 2.31（Ubuntu 20.04、Debian 11）及以上验证过。
+          `checksums.txt` 里是各文件的 sha256。
+          MARKDOWN
+          sed "s|__TAG__|${GITHUB_REF_NAME}|g" notes.tmpl > notes.md
+          cat notes.md
+
+      - name: 建 Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # 带横杠的标签（v0.4.0-rc1 之类）当预发布，不会顶掉 latest。
+          case "$GITHUB_REF_NAME" in
+            *-*) kind=(--prerelease) ;;
+            *)   kind=(--latest) ;;
+          esac
+          gh release create "$GITHUB_REF_NAME" \
+            "${kind[@]}" \
+            --verify-tag \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file notes.md \
+            'dist/agent-session-cleaner-macos-arm64#macOS · Apple 芯片' \
+            'dist/agent-session-cleaner-macos-x86_64#macOS · Intel' \
+            'dist/agent-session-cleaner-linux-arm64#Linux · arm64' \
+            'dist/agent-session-cleaner-linux-x86_64#Linux · x86_64' \
+            'dist/checksums.txt#sha256 校验和'
