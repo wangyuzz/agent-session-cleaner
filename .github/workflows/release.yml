@@ -32,8 +32,9 @@ jobs:
         run: uv run --python 3.12 --no-project --with . tests/test_e2e.py
 
       # 版本号只写在 __init__.py 里，标签是手打的，两者对不上就会发出一个
-      # 自称是别的版本的包。这里拦住，总比发出去之后再撤要好。
-      - name: 标签和版本号一致
+      # 自称是别的版本的包。这里拦住，总比发出去之后再撤要好。发布说明取自
+      # CHANGELOG，缺了也在这里就报错，不必等四个平台都构建完才发现。
+      - name: 标签、版本号和更新记录对得上
         if: github.ref_type == 'tag'
         run: |
           set -euo pipefail
@@ -45,7 +46,9 @@ jobs:
             echo "标签 $GITHUB_REF_NAME 和代码里的版本号 $version 对不上" >&2
             exit 1
           fi
-          echo "版本号 $version"
+          python3 scripts/changelog.py "$version" > /dev/null
+          # 花括号不能省：紧跟着的中文标点会被 bash 当成变量名的一部分。
+          echo "版本号 ${version}，更新记录已就位"
 
   macos:
     name: macOS ${{ matrix.arch }}
@@ -132,35 +135,12 @@ jobs:
           sha256sum agent-session-cleaner-* > checksums.txt
           cat checksums.txt
 
+      # 发布说明就是 CHANGELOG 里这一版写了什么，安装方法在 README 里，
+      # 不在每次发布时重复一遍。
       - name: 写发布说明
         run: |
           set -euo pipefail
-          # 引号包住的 heredoc 不做任何替换，Markdown 里的反引号才能原样留下；
-          # 标签随后用 sed 填进去。
-          cat > notes.tmpl <<'MARKDOWN'
-          挑对应的文件下载，加上执行权限就能用，不需要装 Python。
-
-          | 系统 | 芯片 | 文件 |
-          |---|---|---|
-          | macOS | Apple 芯片 | `agent-session-cleaner-macos-arm64` |
-          | macOS | Intel | `agent-session-cleaner-macos-x86_64` |
-          | Linux | arm64 | `agent-session-cleaner-linux-arm64` |
-          | Linux | x86_64 | `agent-session-cleaner-linux-x86_64` |
-
-          ```bash
-          curl -L -o agent-session-cleaner \
-            https://github.com/haowang02/agent-session-cleaner/releases/download/__TAG__/agent-session-cleaner-macos-arm64
-          chmod +x agent-session-cleaner
-          ./agent-session-cleaner
-          ```
-
-          macOS 上如果是用浏览器下的，第一次会被系统拦住，执行一次
-          `xattr -d com.apple.quarantine agent-session-cleaner` 再运行就好。
-
-          Linux 版在 glibc 2.31（Ubuntu 20.04、Debian 11）及以上验证过。
-          `checksums.txt` 里是各文件的 sha256。
-          MARKDOWN
-          sed "s|__TAG__|${GITHUB_REF_NAME}|g" notes.tmpl > notes.md
+          python3 scripts/changelog.py "$GITHUB_REF_NAME" > notes.md
           cat notes.md
 
       - name: 建 Release
@@ -173,13 +153,10 @@ jobs:
             *-*) kind=(--prerelease) ;;
             *)   kind=(--latest) ;;
           esac
+          # 资产不加显示名，页面上直接就是文件名——文件名本身已经说明了平台。
           gh release create "$GITHUB_REF_NAME" \
             "${kind[@]}" \
             --verify-tag \
             --title "$GITHUB_REF_NAME" \
             --notes-file notes.md \
-            'dist/agent-session-cleaner-macos-arm64#macOS · Apple 芯片' \
-            'dist/agent-session-cleaner-macos-x86_64#macOS · Intel' \
-            'dist/agent-session-cleaner-linux-arm64#Linux · arm64' \
-            'dist/agent-session-cleaner-linux-x86_64#Linux · x86_64' \
-            'dist/checksums.txt#sha256 校验和'
+            dist/*

@@ -6,14 +6,9 @@
 
 ## 安装
 
-到 [Releases](https://github.com/haowang02/agent-session-cleaner/releases/latest) 下载对应的文件，加上执行权限就能用，不需要装 Python：
+下载对应平台的可执行文件，加上执行权限就能用，不需要装 Python。
 
-| 系统 | 芯片 | 文件 |
-|---|---|---|
-| macOS | Apple 芯片 | `agent-session-cleaner-macos-arm64` |
-| macOS | Intel | `agent-session-cleaner-macos-x86_64` |
-| Linux | arm64 | `agent-session-cleaner-linux-arm64` |
-| Linux | x86_64 | `agent-session-cleaner-linux-x86_64` |
+macOS · Apple 芯片：
 
 ```bash
 curl -L -o agent-session-cleaner \
@@ -21,7 +16,31 @@ curl -L -o agent-session-cleaner \
 chmod +x agent-session-cleaner
 ```
 
-macOS 上如果是用浏览器下载的，第一次会被系统拦住，执行一次 `xattr -d com.apple.quarantine agent-session-cleaner` 再运行就好。Linux 版在 glibc 2.31（Ubuntu 20.04、Debian 11）及以上验证过。
+macOS · Intel：
+
+```bash
+curl -L -o agent-session-cleaner \
+  https://github.com/haowang02/agent-session-cleaner/releases/latest/download/agent-session-cleaner-macos-x86_64
+chmod +x agent-session-cleaner
+```
+
+Linux · x86_64：
+
+```bash
+curl -L -o agent-session-cleaner \
+  https://github.com/haowang02/agent-session-cleaner/releases/latest/download/agent-session-cleaner-linux-x86_64
+chmod +x agent-session-cleaner
+```
+
+Linux · arm64：
+
+```bash
+curl -L -o agent-session-cleaner \
+  https://github.com/haowang02/agent-session-cleaner/releases/latest/download/agent-session-cleaner-linux-arm64
+chmod +x agent-session-cleaner
+```
+
+所有版本都在 [Releases](https://github.com/haowang02/agent-session-cleaner/releases) 页面。macOS 上如果是用浏览器下载的，第一次会被系统拦住，执行一次 `xattr -d com.apple.quarantine agent-session-cleaner` 再运行就好。Linux 版在 glibc 2.31（Ubuntu 20.04、Debian 11）及以上验证过。
 
 也可以从源码装，需要先安装 [uv](https://github.com/astral-sh/uv)：
 
@@ -109,18 +128,6 @@ agent-session-cleaner --claude-home /path/to/claude
 ```
 
 只有一侧存在会话记录也可以正常使用。未安装 Codex 命令行工具时仍可浏览 Codex 会话，但不能归档或删除；浏览和删除 Claude Code 会话不依赖 Claude Code 命令行工具。
-
-## 自己构建
-
-```bash
-./scripts/build.sh                                   # 当前这台机器
-docker buildx build --platform linux/amd64 \
-    --target export --output type=local,dest=dist .  # Linux x86_64
-```
-
-产物在 `dist/`。构建脚本会把生成的可执行文件放进一个伪终端里真跑一遍，确认会话列表、详情和按 `q` 退出都正常，然后才算完成。
-
-推一个 `v` 开头的标签（版本号要和 `src/agent_session_cleaner/__init__.py` 里的对上），GitHub Actions 会构建上面四个平台并发布到 Release 页面。
 
 ## 致谢
 
