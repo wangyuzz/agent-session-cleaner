@@ -2,15 +2,16 @@
 
 在终端中浏览和清理 Codex、Claude Code 的历史会话。
 
-![example](./example.png)
+![界面预览](./example.png)
 
 ## 安装
+
+请先安装 [uv](https://github.com/astral-sh/uv)，然后运行：
 
 ```bash
 git clone https://github.com/haowang02/agent-session-cleaner
 cd agent-session-cleaner
 uv tool install .
-# 提前安装 uv https://github.com/astral-sh/uv
 ```
 
 ## 使用
@@ -19,90 +20,79 @@ uv tool install .
 agent-session-cleaner
 ```
 
-## 快捷键
-
-底部列出当前能用的键，不用记。
-
-| 键 | 作用 |
-|---|---|
-| `↑` `↓` 或 `j` `k` | 上下移动 |
-| `g` `G` | 跳到最前 / 最后 |
-| `Tab` | 在左右两边切换 |
-| `/` | 搜索，`n` `N` 跳到下一个 / 上一个 |
-| `c` | 复制恢复这个会话的命令到剪贴板 |
-| `d` | 删除，会问一次 |
-| `r` | 重新读一遍会话列表 |
-| `!` | 危险模式 |
-| `Esc` | 退出危险模式，或清掉搜索高亮 |
-| `q` | 退出 |
-
-Codex 专有：
-
-| 键 | 作用 |
-|---|---|
-| `a` | 归档 |
-| `u` | 取消归档 |
-| `v` | 显示 / 隐藏已归档的会话 |
-| `s` | 显示被折叠起来的杂项会话 |
-| `D` | 清空全部已归档的会话 |
-
-Claude Code 专有：
-
-| 键 | 作用 |
-|---|---|
-| `E` | 一键清除所有空会话（开了又没说话就退出的那些） |
-
-`a` `c` `d` `u` 永远作用于左边选中的那条，光标在右边也一样。
-
-**接着聊**：按 `c` 会把恢复这个会话的命令复制到剪贴板，粘到终端里回车就能接着聊。命令
-里带了 `cd`，会先切到当初开这个会话的目录：
-
-```
-cd /Users/me/Workspace/foo && codex resume 019fcddc-3f6f-…
-cd /Users/me/Workspace/foo && claude --resume 2dfb1ad0-7d02-…
-```
-
-**危险模式**：按 `!` 开启（会先问一次）。开启后顶部变红，`d` 删除不再询问，一按即删。
-再按 `!` 或 `Esc` 关掉。批量删除（`D`、`E`）在危险模式下仍然会问一次。
-
-## 删除会删掉什么
-
-**删除不可恢复，也不会备份。** 想留一手就先用 `a` 归档，归档随时能用 `u` 撤销。
-
-- **Codex**：调用 Codex 自己的命令来删，行为和你在 Codex 里删一样。
-- **Claude Code**：删掉会话记录文件，以及它同名的附属目录（子代理记录、工具输出）。
-  Claude Code 在别处还留有一些零碎缓存，这个工具不动它们。
-
-## 两边的差别
-
-**Claude Code 没有归档功能**，所以选它的时候，`a` `u` `v` `D` 这几个键会自动消失，
-只能查看和删除。
-
-**Codex 的归档**只是把文件挪个地方，随时可以用 `u` 挪回来。
-
-**Codex 默认折叠了一部分会话**：子代理和自动化跑出来的那些，按 `s` 可以显示出来。
-Claude Code 这边不折叠任何东西，全部列出，其中开了又没说话的空会话可以用 `E` 一次清掉。
-
-## 说明
-
-会话记录默认在 `~/.codex` 和 `~/.claude`，可以用 `--codex-home`、`--claude-home` 指到别处。
-
-只装了其中一个也能用，另一个会显示成“还没有使用记录”。
-
-修改 Codex 的会话需要装好 Codex 命令行工具；没装的话仍然可以翻看，只是归档和删除的键会
-隐藏起来。Claude Code 这边不需要装任何东西。
-
-列表按会话开始的时间排，不看文件的改动时间——升级 Codex 或 Claude Code 有时会把整棵目录
-的时间戳刷成同一个瞬间，照那个排就全乱了。
-
-## 开发
+启动后选择 Codex 或 Claude Code，也可以直接指定：
 
 ```bash
-uv venv && uv pip install -e .
-.venv/bin/python tests/test_e2e.py      # 测试
-uvx ruff check .                        # 静态检查
+agent-session-cleaner codex
+agent-session-cleaner claude
 ```
 
-测试用的会话都是当场造出来的，所以在任何机器上跑结果都一样；另有两节会顺带读一下本机真实
-的 `~/.codex`、`~/.claude`，确认解析器扛得住真实数据——只读，没有就跳过。所有会删东西的
-测试都跑在临时目录里。
+## 快捷键
+
+可用快捷键会显示在界面底部。
+
+| 键 | 作用 |
+|---|---|
+| `↑` `↓` / `j` `k` | 上下移动 |
+| `g` / `G` | 跳到开头 / 末尾 |
+| `Tab` | 切换列表与会话详情 |
+| `/` | 搜索 |
+| `n` / `N` | 下一个 / 上一个搜索结果 |
+| `c` | 复制恢复会话的命令 |
+| `d` | 删除当前会话 |
+| `r` | 刷新会话列表 |
+| `!` | 开启或关闭危险模式 |
+| `Esc` | 关闭危险模式或清除搜索 |
+| `q` | 退出 |
+
+Codex 还支持：
+
+| 键 | 作用 |
+|---|---|
+| `a` | 归档当前会话 |
+| `u` | 取消归档 |
+| `v` | 显示或隐藏已归档会话 |
+| `s` | 显示或隐藏子代理、自动化会话 |
+| `D` | 删除全部已归档会话 |
+
+Claude Code 还支持：
+
+| 键 | 作用 |
+|---|---|
+| `E` | 删除全部空会话 |
+
+`a`、`c`、`d`、`u` 始终作用于左侧选中的会话。
+
+## 恢复会话
+
+按 `c` 会复制一条恢复命令。它会先进入会话原来的工作目录，再恢复对话：
+
+```bash
+cd /path/to/project && codex resume <session-id>
+cd /path/to/project && claude --resume <session-id>
+```
+
+## 删除与归档
+
+删除操作无法恢复，也不会自动备份。Codex 会话如需保留，建议先归档。
+
+- Codex 的归档和删除由 Codex 命令行工具执行。
+- Claude Code 会删除会话记录及其同名附属目录，不会清理其他缓存。
+- ⚠️ 危险模式下，按 `d` 会直接删除。
+
+Claude Code 不支持归档。Codex 默认隐藏子代理和自动化会话，可按 `s` 显示；Claude Code 会显示全部会话，可按 `E` 清理空会话。
+
+## 数据目录
+
+默认读取 `~/.codex` 和 `~/.claude`。如需指定其他目录：
+
+```bash
+agent-session-cleaner --codex-home /path/to/codex
+agent-session-cleaner --claude-home /path/to/claude
+```
+
+只有一侧存在会话记录也可以正常使用。未安装 Codex 命令行工具时仍可浏览 Codex 会话，但不能归档或删除；浏览和删除 Claude Code 会话不依赖 Claude Code 命令行工具。
+
+## 致谢
+
+- [LINUX DO](https://linux.do/) - 新的理想型社区

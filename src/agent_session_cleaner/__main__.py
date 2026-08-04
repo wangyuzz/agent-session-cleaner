@@ -3,15 +3,19 @@
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 
 from . import __version__
-from .app import SessionCleanerApp
-from .backends import BACKEND_CLASSES, BACKEND_IDS, build
-from .picker import AgentPicker
 
 
 def main() -> None:
+    os.environ.setdefault("TEXTUAL_COLOR_SYSTEM", "truecolor")
+
+    from .app import SessionCleanerApp
+    from .backends import BACKEND_CLASSES, BACKEND_IDS, build
+    from .picker import AgentPicker
+
     parser = argparse.ArgumentParser(
         prog="agent-session-cleaner",
         description="翻看和清理 Codex、Claude Code 的历史会话。",
