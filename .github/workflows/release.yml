@@ -20,7 +20,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v9
+      # 完整版本号：setup-uv 从 v8 起就不再推 v8、v9 这样的浮动标签了。
+      - uses: astral-sh/setup-uv@v9.0.0
 
       - name: 代码风格
         run: uvx ruff check .
@@ -60,7 +61,8 @@ jobs:
             arch: x86_64
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v9
+      # 完整版本号：setup-uv 从 v8 起就不再推 v8、v9 这样的浮动标签了。
+      - uses: astral-sh/setup-uv@v9.0.0
 
       # 构建脚本自己会把产物拉起来跑一遍：列表、详情、按 q 退出。
       - name: 构建
