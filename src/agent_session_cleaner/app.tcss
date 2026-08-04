@@ -1,0 +1,222 @@
+Screen {
+    background: $surface;
+}
+
+#banner {
+    height: 1;
+    padding: 0 1;
+    background: $panel;
+    color: $text;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
+/* Danger mode removes a confirmation step, so it has to be impossible to miss. */
+#banner.-danger {
+    background: $error;
+    color: $text;
+}
+
+#body {
+    height: 1fr;
+}
+
+#sessions {
+    width: 50%;
+    min-width: 32;
+    height: 1fr;
+    background: $surface;
+    border-right: solid $panel;
+    padding: 0;
+    scrollbar-size-vertical: 1;
+}
+
+#sessions:focus {
+    border-right: solid $accent;
+}
+
+SessionRow {
+    height: 1;
+    padding: 0 1;
+    background: transparent;
+}
+
+/* Titles are arbitrarily long; keep every row to exactly one line. */
+SessionRow > Static {
+    height: 1;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
+/* $boost is a ~4% white overlay: enough to group rows, not enough to notice. */
+SessionRow.-odd {
+    background: $boost;
+}
+
+/* Archived rows render without per-span colour so this greys the whole line. */
+SessionRow.-archived > Static {
+    color: $text-disabled;
+}
+
+#sessions > SessionRow.-highlight {
+    background: $primary 30%;
+}
+
+#sessions:focus > SessionRow.-highlight {
+    background: $primary 60%;
+}
+
+#detail {
+    height: 1fr;
+    padding: 0 1;
+    background: $surface;
+    scrollbar-size-vertical: 1;
+}
+
+#detail-header {
+    padding: 0 1 1 1;
+    border-bottom: solid $panel;
+    margin-bottom: 1;
+}
+
+.msg {
+    padding: 0 0 0 1;
+    margin-bottom: 1;
+}
+
+.msg.user {
+    border-left: thick $success;
+}
+
+.msg.agent {
+    border-left: thick $primary;
+}
+
+.placeholder {
+    padding: 1 1;
+    color: $text-muted;
+}
+
+#status {
+    height: 1;
+    padding: 0 1;
+    background: $panel;
+    color: $text-muted;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
+#status.-error {
+    background: $error;
+    color: $text;
+}
+
+#status.-ok {
+    background: $success-darken-1;
+    color: $text;
+}
+
+#search-bar {
+    height: 1;
+    background: $panel;
+}
+
+#search-sigil {
+    width: 2;
+    padding-left: 1;
+    background: $panel;
+    color: $accent;
+    text-style: bold;
+}
+
+#search-input {
+    height: 1;
+    width: 1fr;
+    padding: 0;
+    border: none;
+    background: $panel;
+}
+
+#search-input:focus {
+    border: none;
+    background: $panel;
+}
+
+/* --------------------------------------------------------------- confirm -- */
+
+ConfirmScreen {
+    align: center middle;
+    background: $background 60%;
+}
+
+#confirm-box {
+    width: 68;
+    height: auto;
+    padding: 1 2;
+    background: $panel;
+    border: thick $error;
+}
+
+#confirm-title {
+    text-style: bold;
+    color: $error;
+    margin-bottom: 1;
+}
+
+#confirm-subject {
+    height: auto;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+    margin-bottom: 1;
+}
+
+#confirm-body {
+    color: $text-muted;
+    margin-bottom: 1;
+}
+
+#confirm-actions {
+    height: auto;
+    align-horizontal: right;
+}
+
+/* Textual's default focus style is `bold reverse`, which inverts the label into
+   a white block that reads as a rendering artifact. Instead: outlined = a choice
+   you can make, filled = the one Enter will take. Cancel is focused on open. */
+#confirm-actions Button {
+    margin-left: 2;
+    min-width: 14;
+    background: transparent;
+    border: tall $panel-lighten-2;
+    color: $text-muted;
+    text-style: none;
+}
+
+#confirm-actions Button:hover {
+    color: $text;
+    border: tall $foreground 40%;
+}
+
+#confirm-actions Button:focus {
+    background: $primary;
+    border: tall $primary;
+    color: $text;
+    text-style: bold;
+}
+
+#confirm-actions #confirm-yes {
+    color: $error;
+    border: tall $error;
+}
+
+#confirm-actions #confirm-yes:hover {
+    color: $text-error;
+    border: tall $error-lighten-1;
+}
+
+#confirm-actions #confirm-yes:focus {
+    background: $error;
+    border: tall $error;
+    color: $text;
+    text-style: bold;
+}

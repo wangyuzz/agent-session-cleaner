@@ -1,0 +1,52 @@
+[project]
+name = "agent-session-cleaner"
+dynamic = ["version"]
+description = "Browse and clean up your Codex and Claude Code session history"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+keywords = ["codex", "claude-code", "sessions", "tui", "cleanup"]
+classifiers = [
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Utilities",
+]
+# The layout leans on `text-overflow`, `$boost` and the Visual API; 8.2 is the
+# version this is developed and tested against.
+dependencies = ["textual>=8.2"]
+
+[project.scripts]
+agent-session-cleaner = "agent_session_cleaner.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# One source of truth for the version: the package itself, which `--version`
+# also reads, so the two can never drift apart.
+[tool.hatch.version]
+path = "src/agent_session_cleaner/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agent_session_cleaner"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+ignore = [
+    # Every timestamp here is shown to a person in their own timezone and
+    # compared against their own "today", so naive local datetimes are the
+    # point rather than an oversight.
+    "DTZ",
+    # The UI text is Chinese; its punctuation is full-width on purpose.
+    "RUF001",
+    "RUF002",
+    "RUF003",
+    # A chain of guard clauses that each explain a different rule reads better
+    # than one merged boolean.
+    "SIM103",
+]

@@ -1,0 +1,48 @@
+/* `align` has to sit on the Screen, and app.tcss is shared with the manager,
+   so the picker keeps its own stylesheet. */
+Screen {
+    align: center middle;
+    background: $surface;
+}
+
+#picker-box {
+    width: 66;
+    height: auto;
+    padding: 1 2;
+    background: $panel;
+    border: round $accent;
+}
+
+#picker-title {
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+#picker-list {
+    height: auto;
+    background: transparent;
+}
+
+/* One line per agent, with a blank line between them. */
+#picker-list > AgentRow {
+    height: 1;
+    margin-bottom: 1;
+    padding: 0 1;
+    background: transparent;
+}
+
+#picker-list > AgentRow:disabled {
+    text-opacity: 50%;
+}
+
+#picker-hint {
+    margin-top: 1;
+}
+
+#picker-list > AgentRow.-highlight {
+    background: $primary 30%;
+}
+
+#picker-list:focus > AgentRow.-highlight {
+    background: $primary 60%;
+}
