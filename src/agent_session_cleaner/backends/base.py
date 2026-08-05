@@ -28,11 +28,22 @@ class Backend(Protocol):
     #: Label for sessions removed by ``O``. ``None`` means this backend cannot
     #: leave orphans and hides the key; see ``model.orphans``.
     orphan_label: str | None
-    #: Command this backend needs in order to change anything, if any.
-    requires_cli: str | None
+    #: How many sessions of a batch this agent will tolerate being worked on at
+    #: once. Everything an agent stores is shared state, and each backend knows
+    #: how much simultaneous traffic its own tooling stands up to.
+    bulk_concurrency: int
 
     def missing_cli(self) -> str | None:
         """Return the missing required command, or ``None`` when usable."""
+
+    def home_problem(self) -> str | None:
+        """Why this session tree cannot be worked with, or ``None`` when it can.
+
+        Checked once at startup. An agent whose command line locates its own
+        data has a say in what it will accept being pointed at, and the honest
+        moment to refuse is before anything is listed — not once a deletion is
+        already under way.
+        """
 
     def resume_command(self, session: Session) -> str:
         """Shell command that reopens this session in the agent itself."""

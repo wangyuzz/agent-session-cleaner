@@ -1,4 +1,4 @@
-"""Entry point: `agent-session-cleaner [codex|claude]`."""
+"""Entry point: ``agent-session-cleaner [codex|claude|opencode]``."""
 
 from __future__ import annotations
 
@@ -33,20 +33,15 @@ def main() -> None:
         choices=BACKEND_IDS,
         help=t("cli_agent"),
     )
-    parser.add_argument(
-        "--codex-home",
-        type=Path,
-        default=None,
-        metavar=t("cli_directory"),
-        help=t("cli_codex_home"),
-    )
-    parser.add_argument(
-        "--claude-home",
-        type=Path,
-        default=None,
-        metavar=t("cli_directory"),
-        help=t("cli_claude_home"),
-    )
+    # One --<agent>-home per backend, in the order the chooser lists them.
+    for backend_id in BACKEND_IDS:
+        parser.add_argument(
+            f"--{backend_id}-home",
+            type=Path,
+            default=None,
+            metavar=t("cli_directory"),
+            help=t(f"cli_{backend_id}_home"),
+        )
     parser.add_argument(
         "--version",
         action="version",
@@ -56,8 +51,8 @@ def main() -> None:
     args = parser.parse_args()
 
     homes = {
-        "codex": args.codex_home.expanduser() if args.codex_home else None,
-        "claude": args.claude_home.expanduser() if args.claude_home else None,
+        backend_id: home.expanduser() if (home := getattr(args, f"{backend_id}_home")) else None
+        for backend_id in BACKEND_IDS
     }
 
     agent = args.agent
@@ -70,6 +65,11 @@ def main() -> None:
     if not backend.home.is_dir():
         label = BACKEND_CLASSES[agent].label
         parser.error(t("cli_missing_home", agent=label, path=backend.home))
+    # Say now if this directory is one the agent could never be pointed at,
+    # rather than listing sessions that nothing may then be done to.
+    problem = backend.home_problem()
+    if problem:
+        parser.error(problem)
 
     SessionCleanerApp(backend).run()
 

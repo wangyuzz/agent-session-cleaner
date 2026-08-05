@@ -17,6 +17,13 @@ Screen {
     color: $text;
 }
 
+/* Multi-select changes what the keys act on, which is a mode rather than a
+   hazard: same idea as danger mode, deliberately not the same colour. */
+#banner.-select {
+    background: $success-darken-1;
+    color: $text;
+}
+
 #body {
     height: 1fr;
 }
@@ -72,6 +79,30 @@ SessionRow.-orphan > Static {
 
 #sessions:focus > SessionRow.-highlight {
     background: $primary 60%;
+}
+
+/* Picked rows keep whatever colour their state gave them — archived grey,
+   orphan amber — and add weight and a fill of their own. The fill is green
+   where the cursor is blue, so a row can show both at once, and the last two
+   rules keep the cursor legible while it stands on a picked row. */
+SessionRow.-selected > Static {
+    text-style: bold;
+}
+
+#sessions > SessionRow.-selected {
+    background: $success 30%;
+}
+
+#sessions:focus > SessionRow.-selected {
+    background: $success 40%;
+}
+
+#sessions > SessionRow.-selected.-highlight {
+    background: $success 60%;
+}
+
+#sessions:focus > SessionRow.-selected.-highlight {
+    background: $success 80%;
 }
 
 #detail {
@@ -155,10 +186,13 @@ SessionRow.-orphan > Static {
 /* ---------------------------------------------------------------- footer -- */
 
 /* A Footer docks itself to the bottom. Dock the container instead so its two
-   FooterRow children stack in source order rather than overlap. */
+   FooterRow children stack in source order rather than overlap. The padding
+   lines the keys up with the banner, the status line and the search bar, all of
+   which stand one cell in from the edge. */
 #footer-rows {
     dock: bottom;
     height: 2;
+    padding: 0 1;
     background: $footer-background;
 }
 

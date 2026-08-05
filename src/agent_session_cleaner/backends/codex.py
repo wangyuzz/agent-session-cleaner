@@ -13,7 +13,6 @@ CLI, which reports success or failure through its exit status.
 
 from __future__ import annotations
 
-import asyncio
 import json
 import os
 import re
@@ -24,13 +23,13 @@ from pathlib import Path
 
 from ..i18n import t
 from ..model import Message, OpResult, Session, condense, make_message
+from . import cli
 
 SESSIONS_SUBDIR = "sessions"
 ARCHIVED_SESSIONS_SUBDIR = "archived_sessions"
 SESSION_INDEX_FILE = "session_index.jsonl"
 
 CODEX_BIN = "codex"
-TIMEOUT_SECONDS = 60.0
 
 # Mirrors ``INTERACTIVE_SESSION_SOURCES`` in codex-rs/rollout/src/lib.rs: these
 # are the sources offered by ``codex resume``. Everything else is a sub-agent
@@ -236,11 +235,6 @@ def load_session(path: Path, *, archived: bool, names: dict[str, str]) -> Sessio
     )
 
 
-def _last_line(raw: bytes) -> str:
-    text = raw.decode("utf-8", errors="replace").strip()
-    return text.splitlines()[-1].strip() if text else ""
-
-
 class CodexBackend:
     id = "codex"
     label = "Codex"
@@ -253,7 +247,10 @@ class CodexBackend:
     #: that conversation is deleted the rollout is provably unreachable —
     #: `codex resume` will never offer it and nothing else refers to it.
     orphan_label = t("orphan_sessions")
-    requires_cli = CODEX_BIN
+    #: Archiving moves one file and deleting removes one file, so batches only
+    #: contend for the directory itself. Five at once measured clean, at about
+    #: 40ms per session either way.
+    bulk_concurrency = 4
 
     def __init__(self, home: Path | None = None) -> None:
         self.home = home or default_home()
@@ -261,6 +258,10 @@ class CodexBackend:
     def missing_cli(self) -> str | None:
         """Listing works from the files alone; changing anything needs the CLI."""
         return None if shutil.which(CODEX_BIN) else CODEX_BIN
+
+    def home_problem(self) -> str | None:
+        """CODEX_HOME names the directory itself, so any of them will do."""
+        return None
 
     def resume_command(self, session: Session) -> str:
         parts = []
@@ -321,34 +322,7 @@ class CodexBackend:
         """`delete --force` refuses anything that isn't a UUID, which is why we
         pass session ids rather than names. CODEX_HOME is set explicitly so the
         CLI always acts on the same tree we listed."""
-        executable = shutil.which(CODEX_BIN)
-        if executable is None:
-            return OpResult(False, t("codex_missing"))
-
-        try:
-            process = await asyncio.create_subprocess_exec(
-                executable,
-                *args,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                env={**os.environ, "CODEX_HOME": str(self.home)},
-            )
-        except OSError as error:
-            return OpResult(False, t("codex_start_failed", error=error))
-
-        try:
-            stdout, stderr = await asyncio.wait_for(process.communicate(), TIMEOUT_SECONDS)
-        except TimeoutError:
-            process.kill()
-            await process.wait()
-            return OpResult(False, t("codex_timeout", seconds=f"{TIMEOUT_SECONDS:.0f}"))
-
-        if process.returncode == 0:
-            # The CLI's own wording ("Archived session <uuid>.") is for scripts;
-            # the caller phrases the success message for people.
-            return OpResult(True, "")
-        complaint = _last_line(stderr) or _last_line(stdout)
-        return OpResult(False, complaint or t("codex_unknown_failure"))
+        return await cli.run(CODEX_BIN, args, env={"CODEX_HOME": str(self.home)}, label=self.label)
 
     async def archive(self, session: Session) -> OpResult:
         return await self._run("archive", session.session_id)

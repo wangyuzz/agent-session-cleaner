@@ -4,6 +4,42 @@ Each version section is used verbatim as its GitHub Release notes.
 
 每个版本的小节会原样用作 GitHub Release 说明。
 
+## 0.5.0
+
+### English
+
+- Added OpenCode support. You can browse, search, and preview OpenCode sessions, copy their
+  resume commands, and delete them from the same interface used for Codex and Claude Code.
+- OpenCode sub-agent sessions are shown beneath their source sessions. Placeholder titles are
+  replaced with the opening message, and tool activity is excluded from the conversation preview.
+- Added orphan cleanup for OpenCode. Archived sessions remain visible, while archive and
+  unarchive actions stay in OpenCode itself.
+- Added multi-select: press Space or double-click to select sessions, then archive, unarchive, or
+  delete the entire selection. Descendant sub-agent sessions are included automatically.
+- Bulk changes are faster and safer: independent session trees run concurrently, related sessions
+  keep their required order, temporary OpenCode database conflicts are retried, and unfinished
+  selections remain available to retry.
+- Added `--opencode-home` for custom OpenCode data locations. The selected data directory must be
+  named `opencode`.
+- Refined the English and Simplified Chinese interface text and documentation, updated both
+  screenshots, consolidated the README shortcut reference with clear agent availability, and
+  added the MIT license file.
+
+### 中文
+
+- 新增 OpenCode 支持，可在同一界面中浏览、搜索、预览、复制恢复命令和删除 OpenCode 会话。
+- OpenCode 子代理会话会显示在来源会话下方；尚未生成标题的会话改用开场消息，并从对话预览中
+  排除工具调用等非对话内容。
+- OpenCode 现已支持清理孤立子代理会话。已归档会话仍会正常显示，归档和取消归档则继续在
+  OpenCode 中操作。
+- 新增多选模式：按空格键或双击选择会话后，可批量归档、取消归档或删除；相关子代理会话会自动
+  纳入操作范围。
+- 批量操作现在更快、更稳妥：不同会话树会并发处理，同一会话树仍按安全顺序执行；遇到临时的
+  OpenCode 数据库冲突时会自动重试，未完成的会话也会保留在多选中，方便再次操作。
+- 新增 `--opencode-home`，用于指定自定义 OpenCode 数据目录；所选目录必须命名为 `opencode`。
+- 继续打磨英文和简体中文界面及文档，更新双语界面截图，将 README 快捷键说明合并为一张表并
+  明确标注各快捷键的适用范围，同时补充 MIT 许可证文件。
+
 ## 0.4.1
 
 ### English

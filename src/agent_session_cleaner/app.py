@@ -10,10 +10,13 @@ from typing import ClassVar
 
 from rich.cells import cell_len, set_cell_size
 from rich.text import Text
-from textual import work
+from textual import events, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
+
+# Aliased: `Message` in this project is a line of conversation, not a widget event.
+from textual.message import Message as TextualMessage
 from textual.screen import ModalScreen
 from textual.widgets import Button, Footer, Input, Label, ListItem, ListView, Static
 
@@ -24,7 +27,7 @@ from textual.widgets._footer import FooterKey
 from . import clipboard
 from .backends import Backend
 from .i18n import count_label, n, t
-from .model import Message, Session, orphans
+from .model import Message, OpResult, Session, orphans
 
 DETAIL_CACHE_LIMIT = 48
 # htop-style tree connectors. Sub-agent sessions sit beneath the conversation
@@ -52,21 +55,6 @@ HELP_WIDTH_MIN = 72
 # worker is exclusive, so a newer selection cancels this wait.
 DETAIL_DEBOUNCE_SECONDS = 0.06
 
-_OPERATION_INFINITIVES = {
-    "archive": t("operation_archive"),
-    "unarchive": t("operation_unarchive"),
-    "delete": t("operation_delete"),
-}
-_OPERATION_PROGRESS_LABELS = {
-    "archive": t("operation_archive_progress"),
-    "unarchive": t("operation_unarchive_progress"),
-    "delete": t("operation_delete_progress"),
-}
-_OPERATION_DONE_LABELS = {
-    "archive": t("operation_archive_done"),
-    "unarchive": t("operation_unarchive_done"),
-    "delete": t("operation_delete_done"),
-}
 #: Only meaningful for backends that can archive; hidden entirely otherwise.
 _ARCHIVE_ACTIONS = frozenset({"archive", "unarchive", "delete_archived"})
 #: Everything that writes; hidden when the agent's command line is missing.
@@ -78,9 +66,44 @@ _CHANGING_ACTIONS = frozenset(
         "delete_archived",
         "delete_empty",
         "delete_orphans",
+        "toggle_select",
         "toggle_danger",
     }
 )
+#: Hidden while a selection is standing. Either the action works on the row
+#: under the cursor, which is no longer what the keys are about, or it sweeps
+#: the whole list, which is a different set from the one on screen.
+_SELECTION_HIDDEN = frozenset(
+    {
+        "copy_resume",
+        "delete_archived",
+        "delete_empty",
+        "delete_orphans",
+        "toggle_danger",
+    }
+)
+#: What the footer calls an action once it applies to the selection.
+_SELECTION_LABELS = {
+    "archive": t("binding_archive_selected"),
+    "unarchive": t("binding_unarchive_selected"),
+    "delete": t("binding_delete_selected"),
+    "toggle_select": t("binding_select_more"),
+}
+#: Why a key did nothing: the selection holds nothing this action can act on.
+_SELECTION_NOTHING = {
+    "archive": t("selected_all_archived"),
+    "unarchive": t("selected_none_archived"),
+    "delete": t("selected_none"),
+}
+
+
+def _verb(kind: str, form: str = "") -> str:
+    """The word for one operation: plain, ``_progress`` while it runs, ``_done``.
+
+    The catalogue keys are named after the actions themselves, so the three
+    wordings of a new operation are looked up rather than tabulated here.
+    """
+    return t(f"operation_{kind}{form}")
 
 
 def _tilde(path: str | Path) -> str:
@@ -166,12 +189,67 @@ def _arrange(sessions: list[Session], stranded: set[str]) -> list[tuple[Session,
     return laid_out
 
 
+def _branches(targets: list[Session], parents: dict[str, str | None]) -> list[list[Session]]:
+    """Split a batch into groups that cannot interfere with one another.
+
+    Everything in a group sits on one branch of the tree and keeps the order it
+    arrived in — sub-agents before the session that spawned them — so a session
+    is still only ever acted on after its own descendants. Separate groups share
+    no ancestry, which is what makes running them at the same time safe.
+
+    ``parents`` covers every session on screen, not only the batch: a generation
+    left out of it (an already-archived session, say) must not make a
+    grandparent and grandchild look like two unrelated branches.
+    """
+    among = {session.session_id for session in targets}
+
+    def ancestry(session: Session) -> tuple[str, int]:
+        """The topmost batch member this one hangs from, and how far below it."""
+        top, depth = session.session_id, 0
+        node, climbed = session.session_id, 0
+        path = [node]
+        positions = {node: 0}
+        while parent := parents.get(node):
+            if parent in positions:
+                # Corrupt parent cycles have no top, but their members still
+                # share state and must never run concurrently. A canonical key
+                # puts the whole cycle, plus anything hanging from it, in one
+                # sequential group.
+                cycle = path[positions[parent] :]
+                root = min((item for item in cycle if item in among), default=min(cycle))
+                return root, path.index(root) if root in path else len(path)
+            positions[parent] = len(path)
+            path.append(parent)
+            node, climbed = parent, climbed + 1
+            if parent in among:
+                top, depth = parent, climbed
+        return top, depth
+
+    grouped: dict[str, list[tuple[int, Session]]] = {}
+    for session in targets:
+        root, depth = ancestry(session)
+        grouped.setdefault(root, []).append((depth, session))
+    # Deepest first within a group, and stably, so the guarantee holds whatever
+    # order the batch arrived in rather than only for the callers that sort.
+    return [
+        [session for _, session in sorted(branch, key=lambda item: -item[0])]
+        for branch in grouped.values()
+    ]
+
+
 class SessionRow(ListItem):
     """One session per line, in columns: date · time · project · title.
 
     The date only appears on the first row of each day, so a run of sessions
     reads as a group without spending a column on the same string 20 times.
     """
+
+    class Picked(TextualMessage):
+        """A double-click on a row, which does what Space does."""
+
+        def __init__(self, row: SessionRow) -> None:
+            super().__init__()
+            self.row = row
 
     def __init__(
         self,
@@ -183,6 +261,7 @@ class SessionRow(ListItem):
         prefix: str,
         stranded: bool,
         odd: bool,
+        selected: bool,
         default_client: str,
     ) -> None:
         self._day = day
@@ -199,6 +278,7 @@ class SessionRow(ListItem):
                     "-odd" if odd else "",
                     "-archived" if session.archived else "",
                     "-orphan" if stranded else "",
+                    "-selected" if selected else "",
                 ],
             )
         )
@@ -207,6 +287,16 @@ class SessionRow(ListItem):
 
     def highlight(self, query: str) -> None:
         self._label.update(self._summary(self.session, query))
+
+    def set_selected(self, selected: bool) -> None:
+        self.set_class(selected, "-selected")
+
+    def on_click(self, event: events.Click) -> None:
+        # The first click of the pair has already moved the cursor here, so a
+        # left double-click reads as "this one" and toggles it, same as Space.
+        if event.chain == 2 and event.button == 1:
+            event.stop()
+            self.post_message(self.Picked(self))
 
     def _summary(self, session: Session, query: str = "") -> Text:
         # Archived and orphaned rows carry no per-span colour so that a single
@@ -300,7 +390,9 @@ class FooterRow(Footer):
             yield FooterKey(
                 binding.key,
                 self.app.get_key_display(binding),
-                binding.description,
+                # Several keys act on the selection instead of the row under the
+                # cursor once there is one, and say so.
+                self.app.key_description(binding),
                 binding.action,
                 disabled=not enabled,
                 tooltip=tooltip,
@@ -330,6 +422,7 @@ _HELP: tuple[tuple[str, tuple[tuple[str, str, str | None], ...]], ...] = (
     (
         t("help_manage"),
         (
+            ("␣", t("help_select_toggle"), "toggle_select"),
             ("c", t("help_copy"), "copy_resume"),
             ("d", t("help_delete"), "delete"),
             ("a", t("help_archive"), "archive"),
@@ -460,7 +553,9 @@ def confirm_one(session: Session, extra: int = 0) -> ConfirmScreen:
     )
 
 
-def confirm_bulk(targets: list[Session], what: str, note: str = "") -> ConfirmScreen:
+def confirm_bulk(
+    targets: list[Session], what: str, note: str = "", title: str | None = None
+) -> ConfirmScreen:
     subject = Text(no_wrap=True, overflow="ellipsis")
     subject.append(
         t("bulk_count", count=len(targets), what=count_label(what, len(targets))),
@@ -475,7 +570,7 @@ def confirm_bulk(targets: list[Session], what: str, note: str = "") -> ConfirmSc
     warning = t("delete_irreversible")
     body = f"{note}\n{warning}" if note else warning
     return ConfirmScreen(
-        title=t("confirm_bulk_title", what=what),
+        title=title or t("confirm_bulk_title", what=what),
         subject=subject,
         body=body,
         confirm_label=t("confirm_bulk_button", count=len(targets)),
@@ -505,6 +600,9 @@ class SessionCleanerApp(App[None]):
         Binding("u", "unarchive", t("binding_unarchive")),
         Binding("d", "delete", t("binding_delete")),
         Binding("c", "copy_resume", t("binding_copy")),
+        # Shown as the open-box glyph: "space" spelled out is wider than the label
+        # it introduces, and reads as a word rather than a key.
+        Binding("space", "toggle_select", t("binding_select"), key_display="␣"),
         Binding("D", "delete_archived", t("binding_delete_archived")),
         Binding("E", "delete_empty", t("binding_delete_empty")),
         Binding("O", "delete_orphans", t("binding_delete_orphans")),
@@ -520,7 +618,8 @@ class SessionCleanerApp(App[None]):
         Binding("tab", "focus_next", t("binding_focus"), show=False),
     ]
 
-    #: The top footer row: what you do to the session under the cursor.
+    #: The top footer row: what you do to the session under the cursor, or to
+    #: everything you have picked out.
     _FOOTER_TOP = (
         "archive",
         "unarchive",
@@ -532,7 +631,7 @@ class SessionCleanerApp(App[None]):
         "toggle_danger",
     )
     #: The bottom row: getting around, and the way out.
-    _FOOTER_BOTTOM = ("search_forward", "reload", "help", "quit")
+    _FOOTER_BOTTOM = ("toggle_select", "search_forward", "reload", "help", "quit")
 
     def __init__(self, backend: Backend) -> None:
         super().__init__()
@@ -549,8 +648,13 @@ class SessionCleanerApp(App[None]):
         self._orphan_ids: set[str] = set()
         #: Tree connector per session id, in step with `_sessions`.
         self._prefixes: dict[str, str] = {}
-        #: Keyed by (path, mtime, size) so an edited transcript re-reads itself.
-        self._detail_cache: dict[tuple[str, float, int], list[Message]] = {}
+        #: Sessions picked out for one action to be applied to all of them.
+        #: Non-empty *is* multi-select mode: there is no separate flag, so the
+        #: mode cannot be on with nothing in it.
+        self._selection: set[str] = set()
+        #: Keyed by (id, path, mtime, size) so an edited transcript re-reads
+        #: itself.
+        self._detail_cache: dict[tuple[str, str, float, int], list[Message]] = {}
         self._danger = False
         self._busy = False
         self._query = ""
@@ -559,7 +663,7 @@ class SessionCleanerApp(App[None]):
         self._search_origin = 0
 
     def check_action(self, action: str, parameters: tuple) -> bool | None:
-        """Hide keys that this agent, or this installation, cannot support."""
+        """Hide keys that this agent, this installation, or this mode cannot use."""
         if action in _ARCHIVE_ACTIONS and not self.backend.supports_archive:
             return False
         if action == "delete_empty" and self.backend.empty_label is None:
@@ -568,7 +672,19 @@ class SessionCleanerApp(App[None]):
             return False
         if self._missing_cli and action in _CHANGING_ACTIONS:
             return False
+        if self._selection and action in _SELECTION_HIDDEN:
+            return False
         return True
+
+    def key_description(self, binding: Binding) -> str:
+        """What the footer calls a key right now.
+
+        The keys do not change while a selection is standing, but what they act
+        on does, and the footer is the only place that says so.
+        """
+        if self._selection and binding.action in _SELECTION_LABELS:
+            return _SELECTION_LABELS[binding.action]
+        return binding.description
 
     def compose(self) -> ComposeResult:
         yield Static(id="banner")
@@ -599,7 +715,8 @@ class SessionCleanerApp(App[None]):
 
     # ------------------------------------------------------------------ state
 
-    def _selected(self) -> Session | None:
+    def _cursor(self) -> Session | None:
+        """The row the cursor stands on, which is not the same as the selection."""
         item = self.query_one("#sessions", SessionList).highlighted_child
         return item.session if isinstance(item, SessionRow) else None
 
@@ -611,6 +728,9 @@ class SessionCleanerApp(App[None]):
         # cursor all keep working on plain indices.
         self._sessions = [session for session, _ in laid_out]
         self._prefixes = {session.session_id: prefix for session, prefix in laid_out}
+        # Whatever has been deleted since the selection was made is no longer
+        # selectable, and would otherwise keep the mode on with nothing in it.
+        self._selection &= {session.session_id for session in self._sessions}
         await self._repopulate(prefer_id, prefer_index)
 
     async def _repopulate(self, prefer_id: str | None = None, prefer_index: int = 0) -> None:
@@ -619,6 +739,9 @@ class SessionCleanerApp(App[None]):
         if self._sessions:
             await listing.extend(self._build_rows())
         self._update_banner()
+        # The selection may have emptied out along with the rows that are gone,
+        # and the footer names its keys differently while one is standing.
+        self.refresh_bindings()
 
         if not self._sessions:
             await self._show_placeholder(t("no_sessions_here"))
@@ -661,6 +784,7 @@ class SessionCleanerApp(App[None]):
                 prefix=self._prefixes.get(session.session_id, ""),
                 stranded=session.session_id in self._orphan_ids,
                 odd=bool(index % 2),
+                selected=session.session_id in self._selection,
                 default_client=self.backend.default_client,
             )
             for index, (session, label) in enumerate(zip(self._sessions, labels, strict=True))
@@ -675,8 +799,10 @@ class SessionCleanerApp(App[None]):
             style="dim",
         )
         # Only show counts that are non-zero. The banner is the one line that
-        # remains on screen, so a zero count would only add noise.
-        if self.backend.supports_archive and archived:
+        # remains on screen, so a zero count would only add noise. Counted
+        # wherever archived sessions can appear, including agents that record
+        # the state elsewhere and leave nothing here to change it with.
+        if archived:
             text.append(n("banner_archived_one", "banner_archived_many", archived), style="dim")
         if self.backend.orphan_label and self._orphan_ids:
             text.append(
@@ -688,10 +814,17 @@ class SessionCleanerApp(App[None]):
                 ),
                 style="dim",
             )
+        if self._selection:
+            text.append(
+                n("banner_selected_one", "banner_selected_many", len(self._selection)),
+                style="bold",
+            )
         if self._danger:
             text.append(t("banner_danger"), style="bold")
         banner = self.query_one("#banner", Static)
         banner.set_class(self._danger, "-danger")
+        # Danger mode is the more alarming of the two; let it keep the colour.
+        banner.set_class(bool(self._selection) and not self._danger, "-select")
         banner.update(text)
 
     def _set_status(self, message: str, *, tone: str = "") -> None:
@@ -708,7 +841,9 @@ class SessionCleanerApp(App[None]):
     @work(exclusive=True, group="detail")
     async def _load_detail(self, session: Session) -> None:
         await asyncio.sleep(DETAIL_DEBOUNCE_SECONDS)
-        key = (str(session.path), session.updated_at.timestamp(), session.size)
+        # Keyed by id as well as file: an agent that keeps every session in one
+        # database would otherwise have them all share a cache entry.
+        key = (session.session_id, str(session.path), session.updated_at.timestamp(), session.size)
         messages = self._detail_cache.get(key)
         if messages is None:
             messages = await asyncio.to_thread(self.backend.load_messages, session)
@@ -716,7 +851,7 @@ class SessionCleanerApp(App[None]):
                 self._detail_cache.pop(next(iter(self._detail_cache)))
             self._detail_cache[key] = messages
 
-        current = self._selected()
+        current = self._cursor()
         if current is None or current.session_id != session.session_id:
             return
         await self._render_detail(session, messages)
@@ -844,6 +979,11 @@ class SessionCleanerApp(App[None]):
         if self._danger:
             self.action_toggle_danger()
             return
+        if self._selection:
+            self._selection.clear()
+            self._selection_changed()
+            self._set_status(t("selection_cleared"))
+            return
         if not self._query:
             return
         self._query = ""
@@ -964,12 +1104,55 @@ class SessionCleanerApp(App[None]):
 
     @work(group="view", exclusive=True)
     async def _reload_worker(self) -> None:
-        current = self._selected()
+        current = self._cursor()
         await self._reload(current.session_id if current else None, self._current_index())
         self._set_status(t("reloaded"))
 
+    def action_toggle_select(self) -> None:
+        """Space: put the session under the cursor in the selection, or take it out."""
+        session = self._cursor()
+        if session is None:
+            self._set_status(t("no_selection"), tone="error")
+            return
+        self._toggle_select(session)
+
+    def on_session_row_picked(self, event: SessionRow.Picked) -> None:
+        """A double-click on a row means the same thing as Space on it."""
+        self._toggle_select(event.row.session)
+
+    def _toggle_select(self, session: Session) -> None:
+        """Add a session to the selection, or take it out.
+
+        A sub-agent session exists only because of the conversation that spawned
+        it and goes wherever that conversation goes, so picking a session picks
+        its whole subtree — and unpicking one releases the family it belongs to.
+        Whatever the rows show is therefore exactly what the keys will act on.
+        """
+        if self._missing_cli:
+            self._set_status(t("missing_cli_modify", agent=self.backend.label), tone="error")
+            return
+        family = {s.session_id for s in (session, *self._descendants(session))}
+        if session.session_id in self._selection:
+            # Releasing a sub-agent releases what it hangs from as well. An
+            # ancestor left standing would take this one along regardless, and
+            # the row would be claiming it had been spared when it had not.
+            self._selection -= family | {s.session_id for s in self._ancestors(session)}
+        else:
+            self._selection |= family
+        self._selection_changed()
+
+    def _selection_changed(self) -> None:
+        for row in self.query(SessionRow):
+            row.set_selected(row.session.session_id in self._selection)
+        self._update_banner()
+        # Several keys appear, disappear or change wording with the mode.
+        self.refresh_bindings()
+
     def action_archive(self) -> None:
-        session = self._require_selection()
+        if self._selection:
+            self._selected_operation("archive")
+            return
+        session = self._require_cursor()
         if session is None:
             return
         if session.archived:
@@ -978,7 +1161,10 @@ class SessionCleanerApp(App[None]):
         self._run_operation("archive", session)
 
     def action_unarchive(self) -> None:
-        session = self._require_selection()
+        if self._selection:
+            self._selected_operation("unarchive")
+            return
+        session = self._require_cursor()
         if session is None:
             return
         if not session.archived:
@@ -988,7 +1174,7 @@ class SessionCleanerApp(App[None]):
 
     def action_copy_resume(self) -> None:
         """Put a `cd … && … resume …` line on the clipboard."""
-        session = self._selected()
+        session = self._cursor()
         if session is None:
             self._set_status(t("no_selection"), tone="error")
             return
@@ -1003,14 +1189,18 @@ class SessionCleanerApp(App[None]):
 
         if self._missing_cli:
             note = t("copy_missing_cli_note", agent=self.backend.label)
-        elif session.archived:
+        elif session.archived and self.backend.supports_archive:
+            # Only worth saying where there is an unarchive key to say it about.
             note = t("copy_archived_note")
         else:
             note = ""
         self._set_status(t("copy_success", note=note, command=command), tone="ok")
 
     def action_delete(self) -> None:
-        session = self._require_selection()
+        if self._selection:
+            self._selected_operation("delete")
+            return
+        session = self._require_cursor()
         if session is None:
             return
         if self._danger:
@@ -1077,59 +1267,137 @@ class SessionCleanerApp(App[None]):
             self._with_sub_agents(stranded), what, note=t("orphan_note")
         )
 
-    @work(group="confirm", exclusive=True)
-    async def _confirm_bulk(self, targets: list[Session], what: str, note: str = "") -> None:
-        if await self.push_screen_wait(confirm_bulk(targets, what, note)):
+    def _selected_operation(self, kind: str) -> None:
+        """Apply one of the session actions to everything the user picked out."""
+        if self._missing_cli:
+            self._set_status(t("missing_cli_modify", agent=self.backend.label), tone="error")
+            return
+        if self._reject_while_busy():
+            return
+        picked = [s for s in self._sessions if s.session_id in self._selection]
+        targets = self._with_sub_agents(picked)
+        # Archiving what is already archived, or the reverse, is an error the
+        # agent's own command line would rightly complain about.
+        if kind == "archive":
+            targets = [s for s in targets if not s.archived]
+        elif kind == "unarchive":
+            targets = [s for s in targets if s.archived]
+        if not targets:
+            self._set_status(_SELECTION_NOTHING[kind], tone="error")
+            return
+
+        if kind != "delete":
             self._busy = True
-            self._bulk_delete_worker(targets, what)
+            self._bulk_worker(kind, targets)
+            return
+        # A picked session drags its sub-agents along even when they were taken
+        # out of the selection by hand, so the dialog says how many that is.
+        extra = len(targets) - len(picked)
+        note = n("cascade_orphans_one", "cascade_orphans_many", extra) if extra else ""
+        self._confirm_bulk(targets, t("sessions_word"), note, t("confirm_selection_title"))
+
+    @work(group="confirm", exclusive=True)
+    async def _confirm_bulk(
+        self, targets: list[Session], what: str, note: str = "", title: str | None = None
+    ) -> None:
+        if await self.push_screen_wait(confirm_bulk(targets, what, note, title)):
+            self._busy = True
+            self._bulk_worker("delete", targets, what)
 
     @work(group="op")
-    async def _bulk_delete_worker(self, targets: list[Session], what: str) -> None:
+    async def _bulk_worker(self, kind: str, targets: list[Session], what: str = "") -> None:
+        """Run one action over a whole set, several branches at a time.
+
+        Unlike the single-session cascade this does not give up at the first
+        failure: a refusal says nothing about a session it is unrelated to. What
+        it does hold back is the chain the refusal hangs from, because removing
+        a session whose own sub-agent stayed behind is exactly what strands one.
+        """
+        what = what or t("sessions_word")
         index = self._current_index()
         failures: list[str] = []
-        try:
-            for done, session in enumerate(targets, start=1):
-                self._set_status(
-                    t(
-                        "deleting_progress",
-                        done=done,
-                        total=len(targets),
-                        title=session.title,
-                    )
-                )
-                result = await self.backend.delete(session)
+        done: set[str] = set()
+        # Each call is a whole process for most agents, so a batch is
+        # otherwise as slow as the sum of its parts. How many at once is the
+        # backend's call: they share one session tree, sometimes one file.
+        limit = asyncio.Semaphore(self.backend.bulk_concurrency)
+        parents = {s.session_id: s.parent_id for s in self._sessions}
+
+        async def sweep(branch: list[Session]) -> None:
+            #: Sessions a failure further down has ruled out for this run. A
+            #: branch is ordered deepest first, so an ancestor is always still
+            #: ahead when the sub-agent that blocks it refuses.
+            held_back: set[str] = set()
+            for session in branch:
+                if session.session_id in held_back:
+                    continue
+                async with limit:
+                    result = await self._apply(kind, session)
                 if not result.ok:
                     failures.append(result.message)
+                    node = session.session_id
+                    while (parent := parents.get(node)) and parent not in held_back:
+                        held_back.add(parent)
+                        node = parent
+                    continue
+                done.add(session.session_id)
+                self._set_status(
+                    t(
+                        "bulk_progress",
+                        operation=_verb(kind, "_progress"),
+                        done=len(done),
+                        total=len(targets),
+                    )
+                )
+
+        try:
+            await asyncio.gather(*(sweep(branch) for branch in _branches(targets, parents)))
+            # What this settled is no longer what a selection was made for.
+            # What it could not settle still is, and so is anything picked out
+            # while it ran — both are things there is still a decision to make
+            # about.
+            self._selection -= done
+            await self._reload(None, index)
         finally:
+            # Only now: until the list is rebuilt, the next keypress would be
+            # deciding about rows that are already gone.
             self._busy = False
 
-        await self._reload(None, index)
         if failures:
             self._set_status(
                 t(
                     "bulk_failed",
-                    done=len(targets) - len(failures),
+                    operation=_verb(kind, "_done"),
+                    done=len(done),
                     total=len(targets),
-                    failed=len(failures),
+                    # Whatever is still there, whether it refused or was never
+                    # reached because its own sub-agent refused first. The
+                    # numbers have to add up to what the list still shows.
+                    remaining=len(targets) - len(done),
                     message=failures[0],
                 ),
                 tone="error",
             )
         else:
             self._set_status(
-                t("bulk_deleted", count=len(targets), what=count_label(what, len(targets))),
+                t(
+                    "bulk_done",
+                    operation=_verb(kind, "_done"),
+                    count=len(targets),
+                    what=count_label(what, len(targets)),
+                ),
                 tone="ok",
             )
 
     # ------------------------------------------------------------- operations
 
-    def _require_selection(self) -> Session | None:
+    def _require_cursor(self) -> Session | None:
         if self._missing_cli:
             self._set_status(t("missing_cli_modify", agent=self.backend.label), tone="error")
             return None
         if self._reject_while_busy():
             return None
-        session = self._selected()
+        session = self._cursor()
         if session is None:
             self._set_status(t("no_selection"), tone="error")
         return session
@@ -1143,12 +1411,16 @@ class SessionCleanerApp(App[None]):
         return self.query_one("#sessions", SessionList).index or 0
 
     def _children_map(self) -> dict[str, list[Session]]:
-        return {
-            parent: [s for s in self._sessions if s.parent_id == parent]
-            for parent in {
-                s.parent_id for s in self._sessions if s.parent_id and s.parent_id != s.session_id
-            }
-        }
+        """Sub-agents by the id of the session that spawned them.
+
+        A row claiming itself as its own parent is dropped rather than trusted;
+        it is corrupt data, and believing it would make a session its own child.
+        """
+        kin: dict[str, list[Session]] = {}
+        for session in self._sessions:
+            if session.parent_id and session.parent_id != session.session_id:
+                kin.setdefault(session.parent_id, []).append(session)
+        return kin
 
     def _descendants(
         self, session: Session, kin: dict[str, list[Session]] | None = None
@@ -1171,6 +1443,19 @@ class SessionCleanerApp(App[None]):
                 found.append(child)
 
         walk(session)
+        return found
+
+    def _ancestors(self, session: Session) -> list[Session]:
+        """The chain of sessions this one hangs from, nearest first."""
+        by_id = {s.session_id: s for s in self._sessions}
+        found: list[Session] = []
+        seen = {session.session_id}
+        node: Session | None = session
+        while node is not None and node.parent_id and node.parent_id not in seen:
+            seen.add(node.parent_id)
+            node = by_id.get(node.parent_id)
+            if node is not None:
+                found.append(node)
         return found
 
     def _cascade(self, kind: str, session: Session) -> list[Session]:
@@ -1207,6 +1492,20 @@ class SessionCleanerApp(App[None]):
                     ordered.append(target)
         return ordered
 
+    async def _apply(self, kind: str, session: Session) -> OpResult:
+        """One backend call, with anything it raises turned into a failed result.
+
+        A backend reports trouble by returning; one that raises instead would
+        otherwise take down the worker running it, and with it the reload, the
+        busy flag and — during a batch — every other branch still in flight.
+        """
+        try:
+            return await getattr(self.backend, kind)(session)
+        except Exception as error:
+            return OpResult(
+                False, t("unexpected_error", error=f"{type(error).__name__}: {error}")
+            )
+
     def _run_operation(self, kind: str, session: Session) -> None:
         # Claim the busy flag synchronously: a worker doesn't start until the
         # next event-loop tick, which would let a double keypress fire twice.
@@ -1215,9 +1514,6 @@ class SessionCleanerApp(App[None]):
 
     @work(group="op")
     async def _operation_worker(self, kind: str, targets: list[Session]) -> None:
-        progress_label = _OPERATION_PROGRESS_LABELS[kind]
-        done_label = _OPERATION_DONE_LABELS[kind]
-        infinitive = _OPERATION_INFINITIVES[kind]
         session = targets[-1]  # the row under the cursor; the rest ride along
         extra = len(targets) - 1
         index = self._current_index()
@@ -1229,7 +1525,7 @@ class SessionCleanerApp(App[None]):
                     self._set_status(
                         t(
                             "operation_progress",
-                            operation=progress_label,
+                            operation=_verb(kind, "_progress"),
                             done=done,
                             total=len(targets),
                             title=target.title,
@@ -1237,20 +1533,25 @@ class SessionCleanerApp(App[None]):
                     )
                 else:
                     self._set_status(
-                        t("operation_progress_one", operation=progress_label, title=target.title)
+                        t(
+                            "operation_progress_one",
+                            operation=_verb(kind, "_progress"),
+                            title=target.title,
+                        )
                     )
-                result = await getattr(self.backend, kind)(target)
+                result = await self._apply(kind, target)
                 if not result.ok:
                     message = result.message
                     stopped_short = target is not session
                     break
+            # Archiving moves the file, so re-select by id where the row
+            # survives and fall back to the same slot where it doesn't.
+            await self._reload(None if kind == "delete" else session.session_id, index)
         finally:
+            # Only now: until the list is rebuilt, the next keypress would be
+            # deciding about rows that are already gone.
             self._busy = False
 
-        # Archiving moves the file, so re-select by id where the row survives
-        # and fall back to the same slot where it doesn't.
-        prefer_id = None if kind == "delete" else session.session_id
-        await self._reload(prefer_id, index)
         # Backends report failures in their own words; success is phrased here so
         # the wording stays the same whichever agent is being managed.
         if not message:
@@ -1258,12 +1559,12 @@ class SessionCleanerApp(App[None]):
                 n("operation_tail_one", "operation_tail_many", extra) if extra else ""
             )
             self._set_status(
-                t("operation_done", operation=done_label, title=session.title, tail=tail),
+                t("operation_done", operation=_verb(kind, "_done"), title=session.title, tail=tail),
                 tone="ok",
             )
         elif stopped_short:
             self._set_status(
-                t("subagent_operation_failed", operation=infinitive, message=message),
+                t("subagent_operation_failed", operation=_verb(kind), message=message),
                 tone="error",
             )
         else:

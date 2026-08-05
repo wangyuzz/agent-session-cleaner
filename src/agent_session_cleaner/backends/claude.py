@@ -250,13 +250,16 @@ class ClaudeBackend:
     #: Sub-agent transcripts live inside the parent's sidecar directory, which
     #: is removed along with the parent, so a stranded one cannot arise.
     orphan_label = None
-    #: Everything here is plain file work, so the CLI needn't be installed.
-    requires_cli = None
+    #: Each deletion is a few filesystem calls on paths of its own.
+    bulk_concurrency = 4
 
     def __init__(self, home: Path | None = None) -> None:
         self.home = home or default_home()
 
     def missing_cli(self) -> str | None:
+        return None
+
+    def home_problem(self) -> str | None:
         return None
 
     def resume_command(self, session: Session) -> str:
@@ -309,10 +312,10 @@ class ClaudeBackend:
         return messages
 
     async def archive(self, session: Session) -> OpResult:
-        return OpResult(False, t("claude_no_archive"))
+        return OpResult(False, t("agent_no_archive", agent=self.label))
 
     async def unarchive(self, session: Session) -> OpResult:
-        return OpResult(False, t("claude_no_archive"))
+        return OpResult(False, t("agent_no_archive", agent=self.label))
 
     async def delete(self, session: Session) -> OpResult:
         return await asyncio.to_thread(_delete_on_disk, session)

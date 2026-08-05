@@ -1,14 +1,15 @@
 [project]
 name = "agent-session-cleaner"
 dynamic = ["version"]
-description = "Browse and clean up your Codex and Claude Code session history"
+description = "Browse and clean up your Codex, Claude Code and OpenCode session history"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
-keywords = ["codex", "claude-code", "sessions", "tui", "cleanup"]
+keywords = ["codex", "claude-code", "opencode", "sessions", "tui", "cleanup"]
 classifiers = [
     "Environment :: Console",
     "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3 :: Only",
     "Topic :: Utilities",
 ]

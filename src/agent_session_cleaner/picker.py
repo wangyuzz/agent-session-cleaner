@@ -94,7 +94,9 @@ class AgentPicker(App[str | None]):
                 continue
             try:
                 sessions = await asyncio.to_thread(row.backend.discover)
-            except OSError:
+            except Exception:
+                # One agent's unreadable store must not leave every row after it
+                # stuck on "Loading…", which is what killing this worker would do.
                 row.set_count(0)
                 continue
             row.set_count(len(sessions))
