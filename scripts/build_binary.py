@@ -44,7 +44,7 @@ def target_name() -> str:
     system = platform.system()
     machine = platform.machine().lower()
     if system not in OS_NAMES or machine not in ARCH_NAMES:
-        raise SystemExit(f"暂不支持在 {system}/{machine} 上构建")
+        raise SystemExit(f"Building on {system}/{machine} is not supported")
     return f"{NAME}-{OS_NAMES[system]}-{ARCH_NAMES[machine]}"
 
 
@@ -104,13 +104,16 @@ def sample_home(root: Path) -> Path:
             "cwd": "/tmp/demo",
             "version": "2.0.0",
             "timestamp": "2026-01-01T08:00:00.000Z",
-            "message": {"role": "user", "content": "冒烟测试"},
+            "message": {"role": "user", "content": "Smoke test"},
         },
         {
             "type": "assistant",
             "sessionId": session_id,
             "timestamp": "2026-01-01T08:00:01.000Z",
-            "message": {"role": "assistant", "content": [{"type": "text", "text": "收到"}]},
+            "message": {
+                "role": "assistant",
+                "content": [{"type": "text", "text": "Received"}],
+            },
         },
     ]
     lines = [json.dumps(record, ensure_ascii=False) for record in records]
@@ -127,7 +130,13 @@ def run_in_terminal(binary: Path, home: Path, timeout: float = 40.0) -> tuple[in
     """
     master_fd, slave_fd = os.openpty()
     fcntl.ioctl(slave_fd, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 120, 0, 0))
-    env = dict(os.environ, TERM="xterm-256color", COLUMNS="120", LINES="40")
+    env = dict(
+        os.environ,
+        TERM="xterm-256color",
+        COLUMNS="120",
+        LINES="40",
+        AGENT_SESSION_CLEANER_LANG="en",
+    )
     process = subprocess.Popen(
         [str(binary), "claude", "--claude-home", str(home)],
         stdin=slave_fd,
@@ -163,7 +172,7 @@ def run_in_terminal(binary: Path, home: Path, timeout: float = 40.0) -> tuple[in
         except subprocess.TimeoutExpired:
             process.kill()
             code = process.wait()
-            output += "\n[按下 q 之后没有退出]".encode()
+            output += b"\n[did not exit after q was pressed]"
     finally:
         os.close(master_fd)
     return code, output.decode("utf-8", errors="replace")
@@ -174,7 +183,7 @@ def smoke_test(binary: Path) -> None:
         [str(binary), "--version"], capture_output=True, text=True, timeout=60
     )
     if version.returncode != 0 or NAME not in version.stdout:
-        raise SystemExit(f"--version 没有正常输出：{version.stdout!r} {version.stderr!r}")
+        raise SystemExit(f"--version failed: {version.stdout!r} {version.stderr!r}")
     print(f"  --version  {version.stdout.strip()}")
 
     with tempfile.TemporaryDirectory(prefix="asc-smoke-") as tmp:
@@ -182,12 +191,12 @@ def smoke_test(binary: Path) -> None:
         code, screen = run_in_terminal(binary, home)
     if code != 0:
         tail = screen[-2000:]
-        raise SystemExit(f"启动后没有正常退出（退出码 {code}）：\n{tail}")
-    for expected in ("冒烟测试", "退出"):
+        raise SystemExit(f"The app did not exit cleanly (exit code {code}):\n{tail}")
+    for expected in ("Smoke test", "Quit"):
         if expected not in screen:
             tail = screen[-2000:]
-            raise SystemExit(f"界面里没有出现「{expected}」：\n{tail}")
-    print("  终端里跑通了：会话列表、详情、按 q 退出")
+            raise SystemExit(f"The UI did not contain {expected!r}:\n{tail}")
+    print("  TUI passed: session list, detail pane, and q to quit")
 
 
 def main() -> None:
@@ -195,13 +204,13 @@ def main() -> None:
     if target.exists():
         target.unlink()
 
-    print(f"构建 {target.name}")
+    print(f"Building {target.name}")
     freeze(target)
     if not target.is_file():
-        raise SystemExit(f"没有生成 {target}")
+        raise SystemExit(f"Build did not produce {target}")
     target.chmod(0o755)
 
-    print("冒烟测试")
+    print("Smoke test")
     smoke_test(target)
 
     digest = hashlib.sha256(target.read_bytes()).hexdigest()

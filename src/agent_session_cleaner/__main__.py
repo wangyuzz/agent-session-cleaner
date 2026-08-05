@@ -7,10 +7,15 @@ import os
 from pathlib import Path
 
 from . import __version__
+from .i18n import argparse_text, t
 
 
 def main() -> None:
     os.environ.setdefault("TEXTUAL_COLOR_SYSTEM", "truecolor")
+    # argparse localizes its own structural labels through this module-level
+    # hook. Point it at the same locale as the rest of the application so an
+    # explicit language override also covers usage and parser errors.
+    argparse._ = argparse_text
 
     from .app import SessionCleanerApp
     from .backends import BACKEND_CLASSES, BACKEND_IDS, build
@@ -18,35 +23,35 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(
         prog="agent-session-cleaner",
-        description="浏览和清理 Codex、Claude Code 的历史会话。",
+        description=t("cli_description"),
         add_help=False,
     )
-    parser.add_argument("-h", "--help", action="help", help="显示帮助并退出")
+    parser.add_argument("-h", "--help", action="help", help=t("cli_help"))
     parser.add_argument(
         "agent",
         nargs="?",
         choices=BACKEND_IDS,
-        help="要清理的会话来源；省略时打开选择界面",
+        help=t("cli_agent"),
     )
     parser.add_argument(
         "--codex-home",
         type=Path,
         default=None,
-        metavar="目录",
-        help="Codex 会话数据目录（默认：~/.codex）",
+        metavar=t("cli_directory"),
+        help=t("cli_codex_home"),
     )
     parser.add_argument(
         "--claude-home",
         type=Path,
         default=None,
-        metavar="目录",
-        help="Claude Code 会话数据目录（默认：~/.claude）",
+        metavar=t("cli_directory"),
+        help=t("cli_claude_home"),
     )
     parser.add_argument(
         "--version",
         action="version",
         version=f"%(prog)s {__version__}",
-        help="显示版本号并退出",
+        help=t("cli_version"),
     )
     args = parser.parse_args()
 
@@ -64,7 +69,7 @@ def main() -> None:
     backend = build(agent, homes.get(agent))
     if not backend.home.is_dir():
         label = BACKEND_CLASSES[agent].label
-        parser.error(f"找不到 {label} 会话目录：{backend.home}")
+        parser.error(t("cli_missing_home", agent=label, path=backend.home))
 
     SessionCleanerApp(backend).run()
 

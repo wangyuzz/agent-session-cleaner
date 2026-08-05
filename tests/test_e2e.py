@@ -17,11 +17,16 @@ import json
 import os
 import shlex
 import shutil
+import subprocess
 import sys
 import tempfile
 import uuid
 from datetime import date, datetime, timedelta
 from pathlib import Path
+
+# Keep the existing UI regression suite deterministic regardless of the host
+# locale. English startup is covered separately in ``test_localization``.
+os.environ["AGENT_SESSION_CLEANER_LANG"] = "zh-CN"
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -31,6 +36,7 @@ from agent_session_cleaner.app import ConfirmScreen, SessionCleanerApp, SessionR
 from agent_session_cleaner.backends import ClaudeBackend, CodexBackend
 from agent_session_cleaner.backends import claude as claude_backend
 from agent_session_cleaner.backends import codex as codex_backend
+from agent_session_cleaner.i18n import catalogs_match, detect_language
 from agent_session_cleaner.model import MAX_MESSAGE_CHARS, Message, Session
 from agent_session_cleaner.picker import AgentPicker, AgentRow
 
@@ -359,6 +365,84 @@ def make_codex_fixture() -> Path:
 # ====================================================== [2.5] 文案与缺失依赖
 
 
+def test_localization() -> None:
+    print("\n[2.4] 中英文与语言检测")
+    check(catalogs_match(), "中英文语言包的键完全一致")
+    check(
+        detect_language({"AGENT_SESSION_CLEANER_LANG": "en", "LANG": "zh_CN.UTF-8"})
+        == "en",
+        "专用环境变量优先于系统语言",
+    )
+    check(
+        detect_language({"LC_ALL": "zh_CN.UTF-8", "LANG": "en_US.UTF-8"}) == "zh",
+        "LC_ALL 优先于 LANG",
+    )
+    check(detect_language({"LANG": "zh-Hans"}) == "zh", "中文 locale 显示中文")
+    check(detect_language({"LANG": "fr_FR.UTF-8"}) == "en", "其他语言回退英文")
+
+    root = Path(__file__).resolve().parents[1]
+    env = {
+        **os.environ,
+        "AGENT_SESSION_CLEANER_LANG": "en",
+        "PYTHONPATH": str(root / "src"),
+    }
+    help_result = subprocess.run(
+        [sys.executable, "-m", "agent_session_cleaner", "--help"],
+        cwd=root,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    check(
+        help_result.returncode == 0
+        and "Browse and clean up" in help_result.stdout
+        and "agent to browse or clean" in help_result.stdout
+        and not any("\u4e00" <= char <= "\u9fff" for char in help_result.stdout),
+        "英文环境下 CLI 帮助完整使用英文",
+    )
+
+    zh_env = {**env, "AGENT_SESSION_CLEANER_LANG": "zh-CN"}
+    zh_help = subprocess.run(
+        [sys.executable, "-m", "agent_session_cleaner", "--help"],
+        cwd=root,
+        env=zh_env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    check(
+        zh_help.returncode == 0
+        and all(word in zh_help.stdout for word in ("用法", "位置参数", "选项", "显示帮助")),
+        "中文环境下 CLI 自带的结构标签也使用中文",
+    )
+
+    probe = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from agent_session_cleaner.app import _HELP, HelpScreen, confirm_danger; "
+            "from agent_session_cleaner.picker import AgentPicker; "
+            "sections=[(name, [(key, text) for key, text, _ in entries]) "
+            "for name, entries in _HELP]; "
+            "print(_HELP[0][0]); print(confirm_danger()._title); print(AgentPicker.TITLE); "
+            "print(HelpScreen(sections, 'Keyboard shortcuts')._box_width)",
+        ],
+        cwd=root,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    check(
+        probe.returncode == 0
+        and probe.stdout.splitlines()[:3]
+        == ["Browse sessions", "Enable danger mode?", "Session Cleaner"]
+        and int(probe.stdout.splitlines()[3]) > app_module.HELP_WIDTH_MIN,
+        f"英文环境下主界面、确认框和选择界面均为英文：{probe.stdout.strip()}",
+    )
+
+
 async def test_wording_and_missing_deps(codex_home: Path, claude_home: Path) -> None:
     print("\n[2.5] 文案 / 缺少依赖时的表现")
 
@@ -410,7 +494,7 @@ async def test_wording_and_missing_deps(codex_home: Path, claude_home: Path) -> 
             rows = list(picker.query(AgentRow))
             check(
                 not any(r.usable for r in rows)
-                and all("暂无会话记录" in str(r._label.visual) for r in rows),
+                and all("未找到会话" in str(r._label.visual) for r in rows),
                 "没有会话记录时如实说明",
             )
             await pilot.press("c")
@@ -448,7 +532,7 @@ async def test_wording_and_missing_deps(codex_home: Path, claude_home: Path) -> 
         async with app.run_test(size=(120, 30)) as pilot:
             await pilot.pause()
             await pilot.pause(0.6)
-            check("命令行工具" in _status(app), f"启动即提示：{_status(app)}")
+            check("CLI" in _status(app), f"启动即提示：{_status(app)}")
             check(
                 all(
                     app.check_action(action, ()) is False
@@ -528,7 +612,7 @@ async def test_copy_resume(codex_home: Path, claude_home: Path) -> None:
                     and session.session_id in copied,
                     f"{backend.label}：{copied}",
                 )
-                check("已拷贝到剪贴板" in _status(app), f"状态栏确认拷贝成功：{_status(app)[:24]}")
+                check("已复制到剪贴板" in _status(app), f"状态栏确认复制成功：{_status(app)[:24]}")
     finally:
         os.environ["PATH"] = saved
 
@@ -585,7 +669,7 @@ async def test_search(codex_home: Path) -> None:
         await pilot.press("n")
         await pilot.pause()
         check(
-            listing.index == matches[0] and "已从另一端继续" in _status(app),
+            listing.index == matches[0] and "已从顶部继续" in _status(app),
             "末尾按 n 从列表另一端继续",
         )
 
@@ -605,7 +689,7 @@ async def test_search(codex_home: Path) -> None:
         for char in "zzqzz":
             await pilot.press(char)
         await pilot.pause(0.3)
-        check("找不到" in _status(app), f"无匹配时提示：{_status(app)}")
+        check("未找到" in _status(app), f"无匹配时提示：{_status(app)}")
         check(app.is_running, "搜索时输入 q 不会退出程序")
         await pilot.press("escape")
         await pilot.pause()
@@ -748,7 +832,7 @@ async def test_orphans(codex_home: Path) -> None:
         await pilot.pause()
         await pilot.pause(0.4)
         banner = str(app.query_one("#banner").visual)
-        check("2 个孤立的子代理会话" in banner, f"顶栏报出孤立数量：{banner.strip()}")
+        check("2 个孤立子代理会话" in banner, f"顶栏报出孤立数量：{banner.strip()}")
         check("按 O" not in banner, "顶栏只显示孤立数量，不附带操作提示")
 
         rows = {r.session.title: r for r in app.query(SessionRow)}
@@ -768,8 +852,8 @@ async def test_orphans(codex_home: Path) -> None:
 
         listing = app.query_one("#sessions")
         for title, expected in (
-            ("上级已经删掉的侧线程", "来源会话已被删除"),
-            ("上级还在的侧线程", "由会话"),
+            ("上级已经删掉的侧线程", "来源会话已删除"),
+            ("上级还在的侧线程", "来源会话："),
             ("最早期没记上级的侧线程", "未记录来源会话"),
             ("写一份周报", None),
         ):
@@ -787,8 +871,8 @@ async def test_orphans(codex_home: Path) -> None:
         if not shown:
             return
         headline = str(app.screen._subject).splitlines()[0]
-        check("共 2 个孤立的子代理会话" in headline, f"确认框只点名孤立的：{headline}")
-        check("来源会话已被删除" in app.screen._body, f"说明为什么可以删：{app.screen._body}")
+        check("已选择 2 个孤立子代理会话" in headline, f"确认框只点名孤立会话：{headline}")
+        check("来源会话已删除" in app.screen._body, f"说明为什么可以删：{app.screen._body}")
         await pilot.press("escape")
         await pilot.pause()
         check(all(s.path.exists() for s in found), "取消之后一个都没动")
@@ -978,7 +1062,7 @@ async def test_codex_mutations(home: Path) -> None:
                 f"a 归档主会话时 {len(moved)}/{len(kids)} 个子代理跟着归档：{_status(app)}",
             )
             check(
-                f"及 {len(kids)} 个子代理会话" in _status(app),
+                f"含 {len(kids)} 个子代理会话" in _status(app),
                 f"状态栏说清楚带上了几个：{_status(app)}",
             )
 
@@ -1002,7 +1086,7 @@ async def test_codex_mutations(home: Path) -> None:
             await pilot.press("d")
             await pilot.pause()
             check(
-                f"同时删除其下的 {len(kids)} 个子代理会话" in app.screen._body,
+                f"还将一并删除 {len(kids)} 个子代理会话" in app.screen._body,
                 f"确认框先说清楚要连带删几个：{app.screen._body}",
             )
             await pilot.press("y")
@@ -1480,7 +1564,7 @@ async def test_ui_regressions(claude_home: Path) -> None:
         await pilot.pause(0.5)
         listing = app.query_one("#sessions")
 
-        # 反向搜索停在原地时不该说已从另一端继续。
+        # 反向搜索停在原地时不该说已从底部继续。
         app._query = "问题"
         matches = app._matches()
         check(len(matches) > 1, f"搜索「问题」命中 {len(matches)} 条")
@@ -1490,12 +1574,12 @@ async def test_ui_regressions(claude_home: Path) -> None:
         app._jump(matches[1], -1, inclusive=True)
         await pilot.pause()
         check(
-            "已从另一端继续" not in _status(app) and listing.index == matches[1],
+            "已从底部继续" not in _status(app) and listing.index == matches[1],
             f"反向搜索停在原地时不误报循环：{_status(app)}",
         )
         app._jump(matches[0], -1, inclusive=False)
         await pilot.pause()
-        check("已从另一端继续" in _status(app), "真正越过边界时才提示")
+        check("已从底部继续" in _status(app), "真正越过边界时才提示")
         app._query = ""
         app._apply_highlight()
 
@@ -1511,7 +1595,7 @@ async def test_ui_regressions(claude_home: Path) -> None:
         await pilot.pause()
         await pilot.pause(0.4)
         placeholder = str(codex.query_one(".placeholder").visual)
-        check("没有会话" in placeholder, f"空目录给出说明：{placeholder.strip()}")
+        check("暂无会话" in placeholder, f"空目录给出说明：{placeholder.strip()}")
 
     fake = [
         Session(
@@ -1526,10 +1610,10 @@ async def test_ui_regressions(claude_home: Path) -> None:
         )
         for i in range(9)
     ]
-    dialog = app_module.confirm_bulk(fake, "已归档的会话")
-    check(dialog._body == "删除后无法恢复。", f"没有额外说明时只讲后果：{dialog._body}")
+    dialog = app_module.confirm_bulk(fake, "已归档会话")
+    check(dialog._body == "此操作无法撤销。", f"没有额外说明时只讲后果：{dialog._body}")
     with_note = app_module.confirm_bulk(
-        fake, "孤立的子代理会话", "它们的来源会话已被删除。"
+        fake, "孤立子代理会话", "这些会话的来源会话已删除。"
     )
     check("来源会话" in with_note._body, f"有理由时先讲理由：{with_note._body.splitlines()[0]}")
     check(
@@ -1638,7 +1722,7 @@ async def test_help(codex_home: Path, claude_home: Path) -> None:
         title = str(codex.screen.query_one("#help-title").visual).strip()
         check(title == "按键说明", f"弹窗标题没有工具名前缀：{title}")
         shown = " ".join(str(w.visual) for w in codex.screen.query(".help-keys"))
-        check("拷贝恢复命令" in shown, "说明里写的是拷贝恢复命令")
+        check("复制用于恢复所选会话的命令" in shown, "说明准确描述了复制恢复命令")
         check("空会话" not in shown, f"Codex 的弹窗里不提 Claude 的空会话：{shown[:40]}")
         await pilot.press("escape")
         await pilot.pause(0.3)
@@ -1657,7 +1741,7 @@ async def test_picker_feedback() -> None:
             await pilot.pause(0.2)
             hint = str(picker.query_one("#picker-hint").visual)
             check(
-                picker.is_running and "暂无会话记录" in hint,
+                picker.is_running and "未找到会话" in hint,
                 f"按下没有记录的 agent 会说明原因：{hint.strip()}",
             )
             await pilot.press("q")
@@ -1729,6 +1813,7 @@ def main() -> int:
     try:
         test_codex_data()
         test_claude_data()
+        test_localization()
 
         codex_fixture = fixture(make_codex_fixture)
         claude_fixture = fixture(make_claude_home)

@@ -32,6 +32,7 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 
+from ..i18n import t
 from ..model import Message, OpResult, Session, condense, make_message
 
 CLAUDE_BIN = "claude"
@@ -174,7 +175,7 @@ def load_session(path: Path) -> Session | None:
         backend="claude",
         path=path,
         session_id=session_id,
-        title=condense(title) if title else "(空会话)",
+        title=condense(title) if title else t("empty_session"),
         client=info["client"] or "cli",
         updated_at=datetime.fromtimestamp(stat.st_mtime),
         size=stat.st_size,
@@ -214,13 +215,13 @@ def _recorded_session_id(path: Path) -> str | None:
 def _delete_on_disk(session: Session) -> OpResult:
     path = session.path
     if not path.exists():
-        return OpResult(False, "会话文件已不存在，请按 r 刷新列表")
+        return OpResult(False, t("session_file_missing"))
 
     # Guard against deleting the wrong transcript, as cc-switch does: the id we
     # are about to act on must match the one recorded inside the file.
     recorded = _recorded_session_id(path)
     if recorded is not None and recorded != session.session_id:
-        return OpResult(False, "文件内的会话 ID 与列表不一致；已取消删除，请按 r 刷新列表")
+        return OpResult(False, t("session_id_mismatch"))
 
     sidecar = sidecar_of(path)
     try:
@@ -229,12 +230,12 @@ def _delete_on_disk(session: Session) -> OpResult:
         elif sidecar.exists():
             sidecar.unlink()
     except OSError as error:
-        return OpResult(False, f"无法删除附属目录：{error}")
+        return OpResult(False, t("sidecar_delete_failed", error=error))
 
     try:
         path.unlink()
     except OSError as error:
-        return OpResult(False, f"无法删除会话：{error}")
+        return OpResult(False, t("session_delete_failed", error=error))
     return OpResult(True, "")
 
 
@@ -245,7 +246,7 @@ class ClaudeBackend:
     shortcut = "c"
     supports_archive = False
     default_client = "cli"
-    empty_label = "空会话"
+    empty_label = t("empty_sessions")
     #: Sub-agent transcripts live inside the parent's sidecar directory, which
     #: is removed along with the parent, so a stranded one cannot arise.
     orphan_label = None
@@ -308,10 +309,10 @@ class ClaudeBackend:
         return messages
 
     async def archive(self, session: Session) -> OpResult:
-        return OpResult(False, "Claude Code 不支持归档会话")
+        return OpResult(False, t("claude_no_archive"))
 
     async def unarchive(self, session: Session) -> OpResult:
-        return OpResult(False, "Claude Code 不支持归档会话")
+        return OpResult(False, t("claude_no_archive"))
 
     async def delete(self, session: Session) -> OpResult:
         return await asyncio.to_thread(_delete_on_disk, session)

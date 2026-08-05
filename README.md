@@ -1,12 +1,14 @@
 # agent-session-cleaner
 
-在终端里浏览和清理 Codex、Claude Code 历史会话。
+[简体中文](./README.zh-CN.md)
 
-![界面预览](./example.png)
+Browse and clean up Codex and Claude Code session history from your terminal.
 
-## 安装
+![Interface preview](./example.png)
 
-macOS · Apple 芯片：
+## Install
+
+macOS · Apple silicon:
 
 ```bash
 curl -L -o agent-session-cleaner \
@@ -14,7 +16,7 @@ curl -L -o agent-session-cleaner \
 chmod +x agent-session-cleaner
 ```
 
-macOS · Intel：
+macOS · Intel:
 
 ```bash
 curl -L -o agent-session-cleaner \
@@ -22,7 +24,7 @@ curl -L -o agent-session-cleaner \
 chmod +x agent-session-cleaner
 ```
 
-Linux · x86_64：
+Linux · x86_64:
 
 ```bash
 curl -L -o agent-session-cleaner \
@@ -30,7 +32,7 @@ curl -L -o agent-session-cleaner \
 chmod +x agent-session-cleaner
 ```
 
-Linux · arm64：
+Linux · arm64:
 
 ```bash
 curl -L -o agent-session-cleaner \
@@ -38,11 +40,11 @@ curl -L -o agent-session-cleaner \
 chmod +x agent-session-cleaner
 ```
 
-
 > [!WARNING]
-> 如果 macOS 拦截了浏览器下载的文件，先执行 `xattr -d com.apple.quarantine agent-session-cleaner`，再重新运行。
+> If macOS blocks a binary downloaded through your browser, run
+> `xattr -d com.apple.quarantine agent-session-cleaner`, then try again.
 
-也可以从源码安装。请先安装 [uv](https://github.com/astral-sh/uv)：
+You can also install from source. Install [uv](https://github.com/astral-sh/uv) first:
 
 ```bash
 git clone https://github.com/haowang02/agent-session-cleaner
@@ -50,81 +52,95 @@ cd agent-session-cleaner
 uv tool install .
 ```
 
-## 使用
+## Use
 
 ```bash
 agent-session-cleaner
 ```
 
-启动后选择 Codex 或 Claude Code；也可以在命令中直接指定：
+Choose Codex or Claude Code at startup, or name the agent directly:
 
 ```bash
 agent-session-cleaner codex
 agent-session-cleaner claude
 ```
 
-默认读取 `~/.codex` 和 `~/.claude`。如需使用其他目录：
+The default data directories are `~/.codex` and `~/.claude`. To use another location:
 
 ```bash
 agent-session-cleaner --codex-home /path/to/codex
 agent-session-cleaner --claude-home /path/to/claude
 ```
 
-## 快捷键
+### Language
 
-界面底部会列出当前可用的快捷键。按 `h` 可查看完整说明。
+The interface follows your locale (`LC_ALL`, `LC_MESSAGES`, `LANGUAGE`, or `LANG`). Chinese
+locales use Simplified Chinese; all other locales use English. To override detection:
 
-| 键 | 作用 |
+```bash
+AGENT_SESSION_CLEANER_LANG=en agent-session-cleaner
+AGENT_SESSION_CLEANER_LANG=zh-CN agent-session-cleaner
+```
+
+## Keyboard shortcuts
+
+The footer shows the shortcuts currently available. Press `h` for the complete reference.
+
+| Key | Action |
 |---|---|
-| `↑` `↓` / `j` `k` | 上下选择会话 |
-| `g` / `G` | 跳到列表顶部 / 底部 |
-| `Tab` | 在会话列表和对话详情之间切换 |
-| `/` | 搜索标题、目录和会话 ID |
-| `?` | 反向搜索 |
-| `n` / `N` | 下一个 / 上一个匹配项 |
-| `c` | 拷贝恢复命令 |
-| `d` | 删除选中的会话 |
-| `r` | 重新读取会话列表 |
-| `h` | 按键说明 |
-| `!` | 切换危险模式 |
-| `Esc` | 关闭危险模式，或清除搜索 |
-| `q` | 退出 |
+| `↑` `↓` / `j` `k` | Select the previous / next session |
+| `g` / `G` | Jump to the top / bottom of the list |
+| `Tab` | Switch between the session list and conversation |
+| `/` | Search titles, directories, and session IDs |
+| `?` | Search backward |
+| `n` / `N` | Jump to the next / previous match |
+| `c` | Copy the resume command for the selected session |
+| `d` | Delete the selected session |
+| `r` | Refresh the session list |
+| `h` | Show keyboard shortcuts |
+| `!` | Toggle danger mode |
+| `Esc` | Turn off danger mode or clear the search |
+| `q` | Quit |
 
-Codex 还支持：
+Codex also supports:
 
-| 键 | 作用 |
+| Key | Action |
 |---|---|
-| `a` | 归档选中的会话 |
-| `u` | 取消归档选中的会话 |
-| `D` | 删除所有已归档会话 |
-| `O` | 删除所有孤立的子代理会话 |
+| `a` | Archive the selected session |
+| `u` | Unarchive the selected session |
+| `D` | Delete all archived sessions |
+| `O` | Delete all orphaned sub-agent sessions |
 
-Claude Code 还支持：
+Claude Code also supports:
 
-| 键 | 作用 |
+| Key | Action |
 |---|---|
-| `E` | 删除所有空会话 |
+| `E` | Delete all empty sessions |
 
-对于 Codex，归档或删除一条会话时，它派生的子代理会话也会一并处理。
+When a Codex session is archived or deleted, its descendant sub-agent sessions are included.
 
-## 恢复会话
+## Resume a session
 
-按 `c` 会将恢复命令拷贝到剪贴板。命令包含 cd 和 resume 两部分：
+Press `c` to copy a ready-to-run command for resuming the selected session. If the session
+records a working directory, the command changes to it first so the agent resumes in the correct
+project context:
 
 ```bash
 cd /path/to/project && codex resume <session-id>
 cd /path/to/project && claude --resume <session-id>
 ```
 
-## 删除与归档原理
+## How deletion and archiving work
 
 > [!WARNING]
-> 本工具不会备份数据，删除后无法恢复！
+> This tool does not create backups. Deleted sessions cannot be recovered.
 
-- Codex 的归档和删除由 Codex 命令行工具执行，没有安装 Codex CLI 则无法正常使用。
-- Claude Code 会删除会话记录及其同名附属目录，但不会清理其他缓存。
-- ⚠️ 危险模式下，按 `d` 会跳过确认并直接删除。
+- Codex archive and delete operations are delegated to the Codex CLI. Without it, Codex
+  sessions can be browsed but not changed.
+- Claude Code deletion removes the transcript and its same-name sidecar directory, but leaves
+  unrelated caches untouched.
+- In danger mode (`!`), pressing `d` deletes immediately without confirmation.
 
-## 致谢
+## Acknowledgements
 
-- [LINUX DO](https://linux.do/)——新的理想型社区
+- [LINUX DO](https://linux.do/) — a community for builders and curious minds

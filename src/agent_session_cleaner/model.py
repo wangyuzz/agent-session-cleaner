@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+from .i18n import n
+
 # A single transcript line can be megabytes of base64 image or tool output.
 MAX_MESSAGE_CHARS = 8000
 MAX_TITLE_CHARS = 160
@@ -83,7 +85,7 @@ def condense(text: str, limit: int = MAX_TITLE_CHARS) -> str:
 def make_message(role: str, text: str, images: int = 0) -> Message | None:
     text = text.strip()
     if images:
-        text = f"{text}\n[{images} 张图片]".strip()
+        text = f"{text}\n{n('images_one', 'images', images)}".strip()
     if not text:
         return None
     truncated = max(0, len(text) - MAX_MESSAGE_CHARS)

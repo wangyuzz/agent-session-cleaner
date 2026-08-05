@@ -1,7 +1,7 @@
-name: 发布
+name: Release
 
-# 打一个 v 开头的标签就会构建四个平台的可执行文件并发到 Release 页面。
-# 手动触发只构建、不发布，方便在动真格之前先看看能不能过。
+# A v-prefixed tag builds all four binaries and publishes a GitHub Release.
+# A manual run builds without publishing, which makes it useful as a dry run.
 on:
   push:
     tags:
@@ -16,25 +16,24 @@ concurrency:
 
 jobs:
   check:
-    name: 检查
+    name: Check
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
-      # 完整版本号：setup-uv 从 v8 起就不再推 v8、v9 这样的浮动标签了。
+      # setup-uv stopped publishing floating major-version tags after v7.
       - uses: astral-sh/setup-uv@v9.0.0
 
-      - name: 代码风格
+      - name: Lint
         run: uvx ruff check .
 
-      # --with . 把包真的装一遍，打包那节才有东西可查；--no-project 是为了
-      # 不在仓库里留下一个 uv.lock。跑不到的部分（比如没装 codex）会自己跳过。
-      - name: 测试
+      # Install the package so packaging metadata is covered, but do not create
+      # a uv.lock in the repository. Checks that need Codex skip themselves.
+      - name: Test
         run: uv run --python 3.12 --no-project --with . tests/test_e2e.py
 
-      # 版本号只写在 __init__.py 里，标签是手打的，两者对不上就会发出一个
-      # 自称是别的版本的包。这里拦住，总比发出去之后再撤要好。发布说明取自
-      # CHANGELOG，缺了也在这里就报错，不必等四个平台都构建完才发现。
-      - name: 标签、版本号和更新记录对得上
+      # Fail before the platform builds if the hand-written tag, package
+      # version, or release notes are missing or inconsistent.
+      - name: Verify tag, version, and changelog
         if: github.ref_type == 'tag'
         run: |
           set -euo pipefail
@@ -43,12 +42,11 @@ jobs:
             text = pathlib.Path('src/agent_session_cleaner/__init__.py').read_text(); \
             print(re.search(r'__version__ = \"([^\"]+)\"', text).group(1))")
           if [ "$tag" != "$version" ]; then
-            echo "标签 $GITHUB_REF_NAME 和代码里的版本号 $version 对不上" >&2
+            echo "Tag $GITHUB_REF_NAME does not match package version $version" >&2
             exit 1
           fi
           python3 scripts/changelog.py "$version" > /dev/null
-          # 花括号不能省：紧跟着的中文标点会被 bash 当成变量名的一部分。
-          echo "版本号 ${version}，更新记录已就位"
+          echo "Version $version and release notes are ready"
 
   macos:
     name: macOS ${{ matrix.arch }}
@@ -64,11 +62,12 @@ jobs:
             arch: x86_64
     steps:
       - uses: actions/checkout@v7
-      # 完整版本号：setup-uv 从 v8 起就不再推 v8、v9 这样的浮动标签了。
+      # setup-uv stopped publishing floating major-version tags after v7.
       - uses: astral-sh/setup-uv@v9.0.0
 
-      # 构建脚本自己会把产物拉起来跑一遍：列表、详情、按 q 退出。
-      - name: 构建
+      # The build script launches the binary and exercises the list, detail
+      # pane, and q-to-quit path before accepting the artifact.
+      - name: Build
         run: ./scripts/build.sh
 
       - uses: actions/upload-artifact@v7
@@ -95,10 +94,9 @@ jobs:
       - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v4
 
-      # 跑的是仓库里那份 Dockerfile，和本地 docker buildx 的命令一模一样，
-      # 所以在自己机器上验过的东西，这里不会变个样子。两种架构都用同架构的
-      # 机器原生构建，不走模拟。
-      - name: 构建
+      # Use the repository Dockerfile exactly as a local buildx run would. Both
+      # architectures build natively on matching runners, without emulation.
+      - name: Build
         run: |
           docker buildx build \
             --platform ${{ matrix.platform }} \
@@ -113,7 +111,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    name: 发到 Release
+    name: Publish release
     if: github.ref_type == 'tag'
     needs: [macos, linux]
     runs-on: ubuntu-24.04
@@ -128,32 +126,33 @@ jobs:
           pattern: agent-session-cleaner-*
           merge-multiple: true
 
-      - name: 校验和
+      - name: Checksums
         run: |
           set -euo pipefail
           cd dist
           sha256sum agent-session-cleaner-* > checksums.txt
           cat checksums.txt
 
-      # 发布说明就是 CHANGELOG 里这一版写了什么，安装方法在 README 里，
-      # 不在每次发布时重复一遍。
-      - name: 写发布说明
+      # Release notes come directly from this version's changelog entry.
+      - name: Prepare release notes
         run: |
           set -euo pipefail
           python3 scripts/changelog.py "$GITHUB_REF_NAME" > notes.md
           cat notes.md
 
-      - name: 建 Release
+      - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          # 带横杠的标签（v0.4.0-rc1 之类）当预发布，不会顶掉 latest。
+          # Hyphenated tags such as v0.4.1-rc1 are prereleases and do not
+          # replace the latest stable release.
           case "$GITHUB_REF_NAME" in
             *-*) kind=(--prerelease) ;;
             *)   kind=(--latest) ;;
           esac
-          # 资产不加显示名，页面上直接就是文件名——文件名本身已经说明了平台。
+          # Asset filenames already describe their platforms; no display label
+          # is needed.
           gh release create "$GITHUB_REF_NAME" \
             "${kind[@]}" \
             --verify-tag \

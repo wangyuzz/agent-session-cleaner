@@ -25,16 +25,16 @@ def entry(version: str) -> str:
         re.MULTILINE | re.DOTALL,
     )
     if found is None:
-        raise SystemExit(f"CHANGELOG.md 里没有 {version} 这一节")
+        raise SystemExit(f"CHANGELOG.md has no {version} section")
     body = found.group(1).strip()
     if not body:
-        raise SystemExit(f"CHANGELOG.md 里 {version} 这一节是空的")
+        raise SystemExit(f"The {version} section in CHANGELOG.md is empty")
     return body
 
 
 def main() -> None:
     if len(sys.argv) != 2:
-        raise SystemExit(f"用法：{sys.argv[0]} <版本号>")
+        raise SystemExit(f"Usage: {sys.argv[0]} <version>")
     print(entry(sys.argv[1].removeprefix("v")))
 
 

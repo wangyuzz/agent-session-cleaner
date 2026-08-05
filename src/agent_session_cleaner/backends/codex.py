@@ -22,6 +22,7 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 
+from ..i18n import t
 from ..model import Message, OpResult, Session, condense, make_message
 
 SESSIONS_SUBDIR = "sessions"
@@ -220,7 +221,7 @@ def load_session(path: Path, *, archived: bool, names: dict[str, str]) -> Sessio
         backend="codex",
         path=path,
         session_id=session_id,
-        title=condense(title) if title else "(空会话)",
+        title=condense(title) if title else t("empty_session"),
         client=_resolve_client(source, subagent_kind, originator),
         updated_at=datetime.fromtimestamp(stat.st_mtime),
         size=stat.st_size,
@@ -251,7 +252,7 @@ class CodexBackend:
     #: A sub-agent rollout records the conversation that spawned it, so once
     #: that conversation is deleted the rollout is provably unreachable —
     #: `codex resume` will never offer it and nothing else refers to it.
-    orphan_label = "孤立的子代理会话"
+    orphan_label = t("orphan_sessions")
     requires_cli = CODEX_BIN
 
     def __init__(self, home: Path | None = None) -> None:
@@ -322,7 +323,7 @@ class CodexBackend:
         CLI always acts on the same tree we listed."""
         executable = shutil.which(CODEX_BIN)
         if executable is None:
-            return OpResult(False, "未找到 codex 命令，无法修改会话")
+            return OpResult(False, t("codex_missing"))
 
         try:
             process = await asyncio.create_subprocess_exec(
@@ -333,21 +334,21 @@ class CodexBackend:
                 env={**os.environ, "CODEX_HOME": str(self.home)},
             )
         except OSError as error:
-            return OpResult(False, f"无法启动 codex：{error}")
+            return OpResult(False, t("codex_start_failed", error=error))
 
         try:
             stdout, stderr = await asyncio.wait_for(process.communicate(), TIMEOUT_SECONDS)
         except TimeoutError:
             process.kill()
             await process.wait()
-            return OpResult(False, f"codex 在 {TIMEOUT_SECONDS:.0f} 秒内没有响应")
+            return OpResult(False, t("codex_timeout", seconds=f"{TIMEOUT_SECONDS:.0f}"))
 
         if process.returncode == 0:
             # The CLI's own wording ("Archived session <uuid>.") is for scripts;
             # the caller phrases the success message for people.
             return OpResult(True, "")
         complaint = _last_line(stderr) or _last_line(stdout)
-        return OpResult(False, complaint or "codex 未说明失败原因")
+        return OpResult(False, complaint or t("codex_unknown_failure"))
 
     async def archive(self, session: Session) -> OpResult:
         return await self._run("archive", session.session_id)

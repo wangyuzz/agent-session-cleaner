@@ -15,6 +15,7 @@ from textual.containers import Vertical
 from textual.widgets import Footer, ListItem, ListView, Static
 
 from .backends import BACKEND_CLASSES, Backend
+from .i18n import n, t
 
 LABEL_WIDTH = 13
 
@@ -39,14 +40,14 @@ class AgentRow(ListItem):
         text.append(set_cell_size(self.backend.label, LABEL_WIDTH), style="bold")
 
         if not self.usable:
-            text.append("暂无会话记录", style="dim")
+            text.append(t("picker_unavailable"), style="dim")
             return text
         if count is None:
-            text.append("正在读取…", style="dim")
+            text.append(t("picker_loading"), style="dim")
             return text
-        text.append(f"{count} 个会话", style="")
+        text.append(n("picker_count_one", "picker_count_many", count), style="")
         if self.backend.missing_cli():
-            text.append("   未安装命令行工具，只能浏览", style="dim")
+            text.append(t("picker_browse_only"), style="dim")
         return text
 
 
@@ -54,13 +55,13 @@ class AgentPicker(App[str | None]):
     """Returns the chosen backend id, or None if the user quit."""
 
     CSS_PATH = "picker.tcss"
-    TITLE = "会话清理"
+    TITLE = t("picker_title")
 
     BINDINGS: ClassVar[list[Binding]] = [
-        Binding("enter", "choose", "打开"),
+        Binding("enter", "choose", t("picker_open")),
         Binding("j", "cursor_down", show=False),
         Binding("k", "cursor_up", show=False),
-        Binding("q", "quit", "退出"),
+        Binding("q", "quit", t("binding_quit")),
     ]
 
     def __init__(self, homes: dict[str, Path | None] | None = None) -> None:
@@ -69,7 +70,7 @@ class AgentPicker(App[str | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="picker-box"):
-            yield Static("选择会话来源", id="picker-title")
+            yield Static(t("picker_choose"), id="picker-title")
             yield ListView(
                 *(AgentRow(cls(self._homes.get(key))) for key, cls in BACKEND_CLASSES.items()),
                 id="picker-list",
@@ -80,9 +81,9 @@ class AgentPicker(App[str | None]):
     def on_mount(self) -> None:
         rows = list(self.query(AgentRow))
         if any(row.usable for row in rows):
-            self._hint("↑↓ 选择 · Enter 打开 · 或按左侧字母")
+            self._hint(t("picker_hint"))
         else:
-            self._hint("没有找到会话记录，按 q 退出")
+            self._hint(t("picker_none"))
         self.query_one("#picker-list", ListView).focus()
         self._count_sessions()
 
@@ -112,7 +113,7 @@ class AgentPicker(App[str | None]):
             self.exit(row.backend.id)
             return
         # Explain why the shortcut did nothing instead of leaving it ambiguous.
-        self._hint(f"{row.backend.label} 暂无会话记录")
+        self._hint(t("picker_agent_none", agent=row.backend.label))
 
     def action_choose(self) -> None:
         item = self.query_one("#picker-list", ListView).highlighted_child

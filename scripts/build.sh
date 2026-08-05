@@ -12,7 +12,7 @@ root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$root"
 
 if ! command -v uv >/dev/null 2>&1; then
-    echo "需要先安装 uv：https://github.com/astral-sh/uv" >&2
+    echo "uv is required: https://github.com/astral-sh/uv" >&2
     exit 1
 fi
 

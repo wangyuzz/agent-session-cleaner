@@ -42,7 +42,7 @@ ignore = [
     # compared against their own "today", so naive local datetimes are the
     # point rather than an oversight.
     "DTZ",
-    # The UI text is Chinese; its punctuation is full-width on purpose.
+    # Localized Chinese text uses full-width punctuation intentionally.
     "RUF001",
     "RUF002",
     "RUF003",

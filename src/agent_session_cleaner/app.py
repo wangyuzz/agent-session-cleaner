@@ -23,6 +23,7 @@ from textual.widgets._footer import FooterKey
 
 from . import clipboard
 from .backends import Backend
+from .i18n import count_label, n, t
 from .model import Message, Session, orphans
 
 DETAIL_CACHE_LIMIT = 48
@@ -43,12 +44,29 @@ PROJECT_WIDTH_MIN = 8
 PROJECT_WIDTH_MAX = 18
 # How many titles the bulk-delete dialog lists before collapsing the rest.
 BULK_PREVIEW_LIMIT = 6
+# Chinese help fits comfortably at this width; longer translations may expand
+# the dialog to match their longest line.
+HELP_WIDTH_MIN = 72
 # Rendering a conversation mounts one widget per message. Debounce so that
 # holding `j` or typing a search doesn't render every session passed over; the
 # worker is exclusive, so a newer selection cancels this wait.
 DETAIL_DEBOUNCE_SECONDS = 0.06
 
-_OPERATION_LABELS = {"archive": "归档", "unarchive": "取消归档", "delete": "删除"}
+_OPERATION_INFINITIVES = {
+    "archive": t("operation_archive"),
+    "unarchive": t("operation_unarchive"),
+    "delete": t("operation_delete"),
+}
+_OPERATION_PROGRESS_LABELS = {
+    "archive": t("operation_archive_progress"),
+    "unarchive": t("operation_unarchive_progress"),
+    "delete": t("operation_delete_progress"),
+}
+_OPERATION_DONE_LABELS = {
+    "archive": t("operation_archive_done"),
+    "unarchive": t("operation_unarchive_done"),
+    "delete": t("operation_delete_done"),
+}
 #: Only meaningful for backends that can archive; hidden entirely otherwise.
 _ARCHIVE_ACTIONS = frozenset({"archive", "unarchive", "delete_archived"})
 #: Everything that writes; hidden when the agent's command line is missing.
@@ -79,9 +97,9 @@ def _case_sensitive(query: str) -> bool:
 def _day_label(when: datetime, today: date) -> str:
     day = when.date()
     if day == today:
-        return "今天"
+        return t("today")
     if day == today - timedelta(days=1):
-        return "昨天"
+        return t("yesterday")
     # Include the year when needed so an old session cannot look recent.
     if day.year != today.year:
         return when.strftime("%y-%m-%d")
@@ -294,41 +312,41 @@ class FooterRow(Footer):
 #: footer in sync for each backend and installation.
 _HELP: tuple[tuple[str, tuple[tuple[str, str, str | None], ...]], ...] = (
     (
-        "浏览会话",
+        t("help_browse"),
         (
-            ("↑ ↓ / j k", "上下选择会话", None),
-            ("g / G", "跳到列表顶部 / 底部", None),
-            ("Tab", "在会话列表和对话详情之间切换", None),
+            ("↑ ↓ / j k", t("help_select"), None),
+            ("g / G", t("help_top_bottom"), None),
+            ("Tab", t("help_focus"), None),
         ),
     ),
     (
-        "搜索会话",
+        t("help_search"),
         (
-            ("/", "搜索标题、目录和会话 ID", None),
-            ("?", "反向搜索", None),
-            ("n / N", "跳到下一个 / 上一个匹配项", None),
+            ("/", t("help_search_fields"), None),
+            ("?", t("help_search_reverse"), None),
+            ("n / N", t("help_search_match"), None),
         ),
     ),
     (
-        "管理会话",
+        t("help_manage"),
         (
-            ("c", "拷贝恢复命令：回到原目录并继续会话", "copy_resume"),
-            ("d", "删除选中的会话及其子代理会话", "delete"),
-            ("a", "归档选中的会话及其子代理会话", "archive"),
-            ("u", "取消归档选中的会话及其子代理会话", "unarchive"),
-            ("D", "删除所有已归档会话", "delete_archived"),
-            ("O", "删除所有孤立的子代理会话", "delete_orphans"),
-            ("E", "删除所有空会话（从未发送过消息）", "delete_empty"),
-            ("!", "切换危险模式：删除时跳过确认", "toggle_danger"),
+            ("c", t("help_copy"), "copy_resume"),
+            ("d", t("help_delete"), "delete"),
+            ("a", t("help_archive"), "archive"),
+            ("u", t("help_unarchive"), "unarchive"),
+            ("D", t("help_delete_archived"), "delete_archived"),
+            ("O", t("help_delete_orphans"), "delete_orphans"),
+            ("E", t("help_delete_empty"), "delete_empty"),
+            ("!", t("help_danger"), "toggle_danger"),
         ),
     ),
     (
-        "其他",
+        t("help_other"),
         (
-            ("Esc", "关闭危险模式，或清除搜索", None),
-            ("r", "重新读取会话列表", None),
-            ("h", "打开按键说明", None),
-            ("q", "退出", None),
+            ("Esc", t("help_escape"), None),
+            ("r", t("help_reload"), None),
+            ("h", t("help_open"), None),
+            ("q", t("help_quit"), None),
         ),
     ),
 )
@@ -348,12 +366,24 @@ class HelpScreen(ModalScreen[None]):
         super().__init__()
         self._sections = sections
         self._heading = title
+        self._key_width = max(
+            (cell_len(key) for _, entries in sections for key, _ in entries), default=0
+        )
+        line_widths = [cell_len(title), cell_len(t("help_close"))]
+        line_widths.extend(cell_len(name) for name, _ in sections)
+        line_widths.extend(
+            2 + self._key_width + 3 + cell_len(what)
+            for _, entries in sections
+            for _, what in entries
+        )
+        # Four cells of horizontal padding and two border cells surround the
+        # content. CSS max-width still keeps this inside a narrow terminal.
+        self._box_width = max(HELP_WIDTH_MIN, max(line_widths, default=0) + 6)
 
     def compose(self) -> ComposeResult:
-        width = max(
-            (cell_len(key) for _, entries in self._sections for key, _ in entries), default=0
-        )
-        with Vertical(id="help-box"):
+        box = Vertical(id="help-box")
+        box.styles.width = self._box_width
+        with box:
             yield Static(self._heading, id="help-title")
             with VerticalScroll(id="help-body"):
                 for name, entries in self._sections:
@@ -362,10 +392,10 @@ class HelpScreen(ModalScreen[None]):
                     for index, (key, what) in enumerate(entries):
                         if index:
                             text.append("\n")
-                        text.append("  " + set_cell_size(key, width), style="bold")
+                        text.append("  " + set_cell_size(key, self._key_width), style="bold")
                         text.append("   " + what)
                     yield Static(text, classes="help-keys")
-            yield Static("按 Esc、q、h 或 Enter 关闭", id="help-footer")
+            yield Static(t("help_close"), id="help-footer")
 
     def action_close(self) -> None:
         self.dismiss(None)
@@ -401,7 +431,7 @@ class ConfirmScreen(ModalScreen[bool]):
                 yield Static(self._body, id="confirm-body")
             with Horizontal(id="confirm-actions"):
                 yield Button(f"{self._confirm_label} (y)", variant="error", id="confirm-yes")
-                yield Button("取消 (n)", id="confirm-no")
+                yield Button(f"{t('cancel')} (n)", id="confirm-no")
 
     def action_confirm(self) -> None:
         self.dismiss(True)
@@ -419,44 +449,48 @@ def confirm_one(session: Session, extra: int = 0) -> ConfirmScreen:
     subject.append(session.session_id, style="dim")
     # State the cascade explicitly: the action affects more than the row under
     # the cursor, even though removing the children prevents new orphans.
-    body = "删除后无法恢复。"
+    body = t("delete_irreversible")
     if extra:
-        body = f"同时删除其下的 {extra} 个子代理会话。\n{body}"
+        body = n("delete_descendant_one", "delete_descendant_many", extra, warning=body)
     return ConfirmScreen(
-        title="确定删除这个会话？",
+        title=t("confirm_delete_title"),
         subject=subject,
         body=body,
-        confirm_label="删除",
+        confirm_label=t("delete"),
     )
 
 
 def confirm_bulk(targets: list[Session], what: str, note: str = "") -> ConfirmScreen:
     subject = Text(no_wrap=True, overflow="ellipsis")
-    subject.append(f"共 {len(targets)} 个{what}\n", style="bold")
+    subject.append(
+        t("bulk_count", count=len(targets), what=count_label(what, len(targets))),
+        style="bold",
+    )
     for session in targets[:BULK_PREVIEW_LIMIT]:
         subject.append(f"  · {session.title}\n", style="dim")
     remaining = len(targets) - BULK_PREVIEW_LIMIT
     if remaining > 0:
-        subject.append(f"  · 还有 {remaining} 个…", style="dim")
+        subject.append(t("bulk_remaining", count=remaining), style="dim")
 
-    body = f"{note}\n删除后无法恢复。" if note else "删除后无法恢复。"
+    warning = t("delete_irreversible")
+    body = f"{note}\n{warning}" if note else warning
     return ConfirmScreen(
-        title=f"确定删除全部{what}？",
+        title=t("confirm_bulk_title", what=what),
         subject=subject,
         body=body,
-        confirm_label=f"删除这 {len(targets)} 个",
+        confirm_label=t("confirm_bulk_button", count=len(targets)),
     )
 
 
 def confirm_danger() -> ConfirmScreen:
     subject = Text()
-    subject.append("开启后，按 d 将直接删除会话，不再确认。\n", style="bold")
-    subject.append("删除后无法恢复。再按 ! 或 Esc 即可关闭。", style="dim")
+    subject.append(t("danger_line_one"), style="bold")
+    subject.append(t("danger_line_two"), style="dim")
     return ConfirmScreen(
-        title="确定开启危险模式？",
+        title=t("confirm_danger_title"),
         subject=subject,
         body="",
-        confirm_label="开启",
+        confirm_label=t("enable"),
     )
 
 
@@ -467,23 +501,23 @@ class SessionCleanerApp(App[None]):
     ENABLE_COMMAND_PALETTE = False
 
     BINDINGS: ClassVar[list[Binding]] = [
-        Binding("a", "archive", "归档"),
-        Binding("u", "unarchive", "取消归档"),
-        Binding("d", "delete", "删除"),
-        Binding("c", "copy_resume", "拷贝恢复命令"),
-        Binding("D", "delete_archived", "删除已归档"),
-        Binding("E", "delete_empty", "删除空会话"),
-        Binding("O", "delete_orphans", "删除孤立会话"),
-        Binding("exclamation_mark", "toggle_danger", "危险模式"),
-        Binding("slash", "search_forward", "搜索"),
-        Binding("r", "reload", "刷新列表"),
-        Binding("h", "help", "按键说明"),
-        Binding("q", "quit", "退出"),
+        Binding("a", "archive", t("binding_archive")),
+        Binding("u", "unarchive", t("binding_unarchive")),
+        Binding("d", "delete", t("binding_delete")),
+        Binding("c", "copy_resume", t("binding_copy")),
+        Binding("D", "delete_archived", t("binding_delete_archived")),
+        Binding("E", "delete_empty", t("binding_delete_empty")),
+        Binding("O", "delete_orphans", t("binding_delete_orphans")),
+        Binding("exclamation_mark", "toggle_danger", t("binding_danger")),
+        Binding("slash", "search_forward", t("binding_search")),
+        Binding("r", "reload", t("binding_reload")),
+        Binding("h", "help", t("binding_help")),
+        Binding("q", "quit", t("binding_quit")),
         Binding("question_mark", "search_backward", show=False),
         Binding("n", "search_next", show=False),
         Binding("N", "search_previous", show=False),
         Binding("escape", "clear_search", show=False),
-        Binding("tab", "focus_next", "切换焦点", show=False),
+        Binding("tab", "focus_next", t("binding_focus"), show=False),
     ]
 
     #: The top footer row: what you do to the session under the cursor.
@@ -503,7 +537,7 @@ class SessionCleanerApp(App[None]):
     def __init__(self, backend: Backend) -> None:
         super().__init__()
         self.backend = backend
-        self.title = f"{backend.label} 会话清理"
+        self.title = t("app_title", agent=backend.label)
         #: Without the agent's command line we can still browse, just not change.
         self._missing_cli = backend.missing_cli()
         #: Everything the agent has, in listing order. Nothing is ever filtered
@@ -556,7 +590,7 @@ class SessionCleanerApp(App[None]):
         self.query_one("#sessions", SessionList).focus()
         if self._missing_cli:
             self._set_status(
-                f"未找到 {self.backend.label} 命令行工具：可以浏览，但不能归档或删除",
+                t("missing_cli_browse", agent=self.backend.label),
                 tone="error",
             )
         else:
@@ -587,7 +621,7 @@ class SessionCleanerApp(App[None]):
         self._update_banner()
 
         if not self._sessions:
-            await self._show_placeholder("这里没有会话。")
+            await self._show_placeholder(t("no_sessions_here"))
             return
 
         index = prefer_index
@@ -636,17 +670,26 @@ class SessionCleanerApp(App[None]):
         archived = sum(1 for session in self._sessions if session.archived)
         text = Text(no_wrap=True, overflow="ellipsis")
         text.append(self.backend.label, style="bold")
-        text.append("   共 ", style="dim")
-        text.append(f"{len(self._sessions)}", style="bold")
-        text.append(" 个会话", style="dim")
-        # Only counts that are actually non-zero: "0 个已归档" is a sentence
-        # about nothing, and the banner is the one line always on screen.
+        text.append(
+            n("banner_sessions_one", "banner_sessions_many", len(self._sessions)),
+            style="dim",
+        )
+        # Only show counts that are non-zero. The banner is the one line that
+        # remains on screen, so a zero count would only add noise.
         if self.backend.supports_archive and archived:
-            text.append(f"   {archived} 个已归档", style="dim")
+            text.append(n("banner_archived_one", "banner_archived_many", archived), style="dim")
         if self.backend.orphan_label and self._orphan_ids:
-            text.append(f"   {len(self._orphan_ids)} 个{self.backend.orphan_label}", style="dim")
+            text.append(
+                n(
+                    "banner_orphans_one",
+                    "banner_orphans_many",
+                    len(self._orphan_ids),
+                    what=count_label(self.backend.orphan_label, len(self._orphan_ids)),
+                ),
+                style="dim",
+            )
         if self._danger:
-            text.append("      ⚠ 危险模式：按 d 直接删除", style="bold")
+            text.append(t("banner_danger"), style="bold")
         banner = self.query_one("#banner", Static)
         banner.set_class(self._danger, "-danger")
         banner.update(text)
@@ -689,7 +732,7 @@ class SessionCleanerApp(App[None]):
                 for message in messages
             )
         else:
-            widgets.append(Static("这个会话没有对话内容。", classes="placeholder"))
+            widgets.append(Static(t("no_conversation"), classes="placeholder"))
 
         await pane.mount_all(widgets)
         pane.scroll_home(animate=False)
@@ -700,7 +743,7 @@ class SessionCleanerApp(App[None]):
         # field's row.
         text = Text(no_wrap=True, overflow="ellipsis")
         if session.archived:
-            text.append("◆ 已归档  ", style="yellow")
+            text.append(t("archived_marker"), style="yellow")
         text.append(session.title + "\n", style="bold")
 
         text.append(session.session_id, style="dim")
@@ -708,25 +751,30 @@ class SessionCleanerApp(App[None]):
         meta = []
         if session.created_at:
             meta.append(session.created_at.strftime("%Y-%m-%d %H:%M"))
-        meta.extend((session.client, f"{len(messages)} 条消息"))
+        meta.extend(
+            (
+                session.client,
+                n("messages_one", "messages_many", len(messages)),
+            )
+        )
         if session.version:
             meta.append(f"v{session.version}")
         text.append("\n" + " · ".join(meta), style="dim")
 
-        cwd = _tilde(session.cwd) if session.cwd else "未记录工作目录"
+        cwd = _tilde(session.cwd) if session.cwd else t("cwd_unknown")
         text.append("\n" + cwd, style="dim")
         # Where this side-thread came from, and whether that conversation is
         # still around — the one thing that decides if it is worth keeping.
         if session.parent_id:
             if session.session_id in self._orphan_ids:
-                text.append("\n来源会话已被删除，无法再恢复", style="yellow")
+                text.append("\n" + t("parent_deleted"), style="yellow")
             else:
-                text.append(f"\n由会话 {session.parent_id} 派生", style="dim")
+                text.append("\n" + t("spawned_by", session_id=session.parent_id), style="dim")
         elif session.side_thread:
             # Otherwise this row just looks like a top-level conversation that
             # forgot to be one; say why it stands alone, and why it is safe.
             text.append(
-                "\n早期版本未记录来源会话：不并入会话树，也不会作为孤立会话删除",
+                "\n" + t("source_unrecorded"),
                 style="dim",
             )
         return text
@@ -735,13 +783,17 @@ class SessionCleanerApp(App[None]):
         is_user = message.role == "user"
         text = Text()
         text.append(
-            "▶ 你\n" if is_user else f"◀ {self.backend.agent_label}\n",
+            f"▶ {t('you')}\n" if is_user else f"◀ {self.backend.agent_label}\n",
             style="bold green" if is_user else "bold blue",
         )
         text.append(message.text)
         if message.truncated_chars:
             text.append(
-                f"\n……消息过长，已省略末尾 {message.truncated_chars} 个字符",
+                n(
+                    "message_truncated_one",
+                    "message_truncated_many",
+                    message.truncated_chars,
+                ),
                 style="dim italic",
             )
         return text
@@ -756,7 +808,7 @@ class SessionCleanerApp(App[None]):
 
     def _begin_search(self, direction: int) -> None:
         if not self._sessions:
-            self._set_status("会话列表为空，无法搜索", tone="error")
+            self._set_status(t("search_empty_list"), tone="error")
             return
         self._search_direction = direction
         self._search_origin = self._current_index()
@@ -813,7 +865,7 @@ class SessionCleanerApp(App[None]):
 
     def _repeat_search(self, direction: int) -> None:
         if not self._query:
-            self._set_status("还没有搜索内容，按 / 开始", tone="error")
+            self._set_status(t("search_not_started"), tone="error")
             return
         self._jump(self._current_index(), direction, inclusive=False)
 
@@ -832,7 +884,7 @@ class SessionCleanerApp(App[None]):
     def _jump(self, start: int, direction: int, *, inclusive: bool) -> None:
         matches = self._matches()
         if not matches:
-            self._set_status(f"找不到「{self._query}」", tone="error")
+            self._set_status(t("search_not_found", query=self._query), tone="error")
             return
 
         # "Wrapped" means the search ran off the end and started over, which is
@@ -848,9 +900,20 @@ class SessionCleanerApp(App[None]):
 
         self.query_one("#sessions", SessionList).index = target
         sigil = "/" if self._search_direction > 0 else "?"
-        note = "  已从另一端继续" if wrapped else ""
+        note = (
+            t("search_wrapped_forward" if direction > 0 else "search_wrapped_backward")
+            if wrapped
+            else ""
+        )
         self._set_status(
-            f"{sigil}{self._query}   匹配 {matches.index(target) + 1}/{len(matches)}{note}"
+            t(
+                "search_status",
+                sigil=sigil,
+                query=self._query,
+                current=matches.index(target) + 1,
+                total=len(matches),
+                note=note,
+            )
         )
 
     def _apply_highlight(self) -> None:
@@ -868,7 +931,7 @@ class SessionCleanerApp(App[None]):
         """Quitting mid-delete would kill the worker between two sessions and
         leave the sweep half done, so it waits."""
         if self._busy:
-            self._set_status("操作进行中，请等完成后再退出", tone="error")
+            self._set_status(t("busy_cannot_quit"), tone="error")
             return
         self.exit()
 
@@ -892,7 +955,7 @@ class SessionCleanerApp(App[None]):
         return sections
 
     def action_help(self) -> None:
-        self.push_screen(HelpScreen(self.help_sections(), "按键说明"))
+        self.push_screen(HelpScreen(self.help_sections(), t("help_title")))
 
     def action_reload(self) -> None:
         if self._reject_while_busy():
@@ -903,14 +966,14 @@ class SessionCleanerApp(App[None]):
     async def _reload_worker(self) -> None:
         current = self._selected()
         await self._reload(current.session_id if current else None, self._current_index())
-        self._set_status("已重新读取会话列表")
+        self._set_status(t("reloaded"))
 
     def action_archive(self) -> None:
         session = self._require_selection()
         if session is None:
             return
         if session.archived:
-            self._set_status("这个会话已经归档，按 u 取消归档", tone="error")
+            self._set_status(t("already_archived"), tone="error")
             return
         self._run_operation("archive", session)
 
@@ -919,7 +982,7 @@ class SessionCleanerApp(App[None]):
         if session is None:
             return
         if not session.archived:
-            self._set_status("这个会话尚未归档", tone="error")
+            self._set_status(t("not_archived"), tone="error")
             return
         self._run_operation("unarchive", session)
 
@@ -927,7 +990,7 @@ class SessionCleanerApp(App[None]):
         """Put a `cd … && … resume …` line on the clipboard."""
         session = self._selected()
         if session is None:
-            self._set_status("没有选中会话", tone="error")
+            self._set_status(t("no_selection"), tone="error")
             return
 
         command = self.backend.resume_command(session)
@@ -939,12 +1002,12 @@ class SessionCleanerApp(App[None]):
             self.copy_to_clipboard(command)
 
         if self._missing_cli:
-            note = f"（本机未安装 {self.backend.label}，请在装有它的机器上运行）"
+            note = t("copy_missing_cli_note", agent=self.backend.label)
         elif session.archived:
-            note = "（这条会话已归档，先按 u 取消归档）"
+            note = t("copy_archived_note")
         else:
             note = ""
-        self._set_status(f"恢复命令已拷贝到剪贴板{note}：{command}", tone="ok")
+        self._set_status(t("copy_success", note=note, command=command), tone="ok")
 
     def action_delete(self) -> None:
         session = self._require_selection()
@@ -965,7 +1028,7 @@ class SessionCleanerApp(App[None]):
         if self._danger:
             self._danger = False
             self._update_banner()
-            self._set_status("危险模式已关闭，删除前会再次确认")
+            self._set_status(t("danger_off"))
             return
         if self._reject_while_busy():
             return
@@ -976,19 +1039,21 @@ class SessionCleanerApp(App[None]):
         if await self.push_screen_wait(confirm_danger()):
             self._danger = True
             self._update_banner()
-            self._set_status("危险模式已开启：按 d 将直接删除会话", tone="error")
+            self._set_status(t("danger_on"), tone="error")
 
     def action_delete_archived(self) -> None:
         if self._reject_while_busy():
             return
         archived = [session for session in self._sessions if session.archived]
         if not archived:
-            self._set_status("没有已归档的会话", tone="error")
+            self._set_status(t("no_archived"), tone="error")
             return
         targets = self._with_sub_agents(archived)
         tagging = len(targets) - len(archived)
-        note = f"还会删除 {tagging} 个子代理会话，以免留下孤立记录。" if tagging else ""
-        self._confirm_bulk(targets, "已归档的会话", note)
+        note = (
+            n("cascade_orphans_one", "cascade_orphans_many", tagging) if tagging else ""
+        )
+        self._confirm_bulk(targets, t("archived_sessions"), note)
 
     def action_delete_empty(self) -> None:
         if self._reject_while_busy():
@@ -996,7 +1061,7 @@ class SessionCleanerApp(App[None]):
         what = self.backend.empty_label
         empty = [session for session in self._sessions if session.noise]
         if not empty:
-            self._set_status(f"没有{what}", tone="error")
+            self._set_status(t("none_of", what=what), tone="error")
             return
         self._confirm_bulk(self._with_sub_agents(empty), what)
 
@@ -1006,10 +1071,10 @@ class SessionCleanerApp(App[None]):
         what = self.backend.orphan_label
         stranded = orphans(self._sessions)
         if not stranded:
-            self._set_status(f"没有{what}：所有子代理会话的来源会话都还在", tone="error")
+            self._set_status(t("no_orphans", what=what), tone="error")
             return
         self._confirm_bulk(
-            self._with_sub_agents(stranded), what, note="它们的来源会话已被删除，无法恢复。"
+            self._with_sub_agents(stranded), what, note=t("orphan_note")
         )
 
     @work(group="confirm", exclusive=True)
@@ -1024,7 +1089,14 @@ class SessionCleanerApp(App[None]):
         failures: list[str] = []
         try:
             for done, session in enumerate(targets, start=1):
-                self._set_status(f"正在删除 {done}/{len(targets)}：{session.title}")
+                self._set_status(
+                    t(
+                        "deleting_progress",
+                        done=done,
+                        total=len(targets),
+                        title=session.title,
+                    )
+                )
                 result = await self.backend.delete(session)
                 if not result.ok:
                     failures.append(result.message)
@@ -1034,29 +1106,37 @@ class SessionCleanerApp(App[None]):
         await self._reload(None, index)
         if failures:
             self._set_status(
-                f"已删除 {len(targets) - len(failures)}/{len(targets)} 条；"
-                f"{len(failures)} 条失败：{failures[0]}",
+                t(
+                    "bulk_failed",
+                    done=len(targets) - len(failures),
+                    total=len(targets),
+                    failed=len(failures),
+                    message=failures[0],
+                ),
                 tone="error",
             )
         else:
-            self._set_status(f"已删除 {len(targets)} 个{what}", tone="ok")
+            self._set_status(
+                t("bulk_deleted", count=len(targets), what=count_label(what, len(targets))),
+                tone="ok",
+            )
 
     # ------------------------------------------------------------- operations
 
     def _require_selection(self) -> Session | None:
         if self._missing_cli:
-            self._set_status(f"未找到 {self.backend.label} 命令行工具，无法修改会话", tone="error")
+            self._set_status(t("missing_cli_modify", agent=self.backend.label), tone="error")
             return None
         if self._reject_while_busy():
             return None
         session = self._selected()
         if session is None:
-            self._set_status("没有选中会话", tone="error")
+            self._set_status(t("no_selection"), tone="error")
         return session
 
     def _reject_while_busy(self) -> bool:
         if self._busy:
-            self._set_status("上一个操作尚未完成，请稍候", tone="error")
+            self._set_status(t("previous_busy"), tone="error")
         return self._busy
 
     def _current_index(self) -> int:
@@ -1135,7 +1215,9 @@ class SessionCleanerApp(App[None]):
 
     @work(group="op")
     async def _operation_worker(self, kind: str, targets: list[Session]) -> None:
-        label = _OPERATION_LABELS[kind]
+        progress_label = _OPERATION_PROGRESS_LABELS[kind]
+        done_label = _OPERATION_DONE_LABELS[kind]
+        infinitive = _OPERATION_INFINITIVES[kind]
         session = targets[-1]  # the row under the cursor; the rest ride along
         extra = len(targets) - 1
         index = self._current_index()
@@ -1144,9 +1226,19 @@ class SessionCleanerApp(App[None]):
         try:
             for done, target in enumerate(targets, start=1):
                 if extra:
-                    self._set_status(f"正在{label} {done}/{len(targets)}：{target.title}")
+                    self._set_status(
+                        t(
+                            "operation_progress",
+                            operation=progress_label,
+                            done=done,
+                            total=len(targets),
+                            title=target.title,
+                        )
+                    )
                 else:
-                    self._set_status(f"正在{label}：{target.title}")
+                    self._set_status(
+                        t("operation_progress_one", operation=progress_label, title=target.title)
+                    )
                 result = await getattr(self.backend, kind)(target)
                 if not result.ok:
                     message = result.message
@@ -1162,11 +1254,16 @@ class SessionCleanerApp(App[None]):
         # Backends report failures in their own words; success is phrased here so
         # the wording stays the same whichever agent is being managed.
         if not message:
-            tail = f"（及 {extra} 个子代理会话）" if extra else ""
-            self._set_status(f"已{label}：{session.title}{tail}", tone="ok")
+            tail = (
+                n("operation_tail_one", "operation_tail_many", extra) if extra else ""
+            )
+            self._set_status(
+                t("operation_done", operation=done_label, title=session.title, tail=tail),
+                tone="ok",
+            )
         elif stopped_short:
             self._set_status(
-                f"子代理会话{label}失败；主会话未作处理，以免产生孤立记录：{message}",
+                t("subagent_operation_failed", operation=infinitive, message=message),
                 tone="error",
             )
         else:
