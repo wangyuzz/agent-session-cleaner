@@ -741,6 +741,9 @@ async def test_orphans(codex_home: Path) -> None:
     check(len(tangled) == 2, f"上级互相指向时两条都还在（{len(tangled)} 条）")
 
     app = SessionCleanerApp(backend)
+    # This section only exercises the UI. Make Codex actions visible even on
+    # CI runners where the real CLI is intentionally absent.
+    app._missing_cli = None
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         await pilot.pause(0.4)
@@ -1549,6 +1552,8 @@ async def test_footer_fits(codex_home: Path, claude_home: Path) -> None:
     ):
         for width in (80, 100):
             app = SessionCleanerApp(backend)
+            if label == "Codex":
+                app._missing_cli = None  # exercise the full Codex footer on CI
             async with app.run_test(size=(width, 25)) as pilot:
                 await pilot.pause()
                 await pilot.pause(0.3)
@@ -1583,6 +1588,7 @@ async def test_help(codex_home: Path, claude_home: Path) -> None:
         return {key: what for _, entries in app.help_sections() for key, what in entries}
 
     codex = SessionCleanerApp(CodexBackend(codex_home))
+    codex._missing_cli = None  # this block checks the full Codex help
     claude = SessionCleanerApp(ClaudeBackend(claude_home))
     codex_keys, claude_keys = _keys(codex), _keys(claude)
     codex_sections = {
