@@ -1,5 +1,5 @@
-/* `align` has to sit on the Screen, and app.tcss is shared with the manager,
-   so the picker keeps its own stylesheet. */
+/* `align` belongs on Screen. Keeping it here prevents the centered picker from
+   affecting the manager screen in app.tcss. */
 Screen {
     align: center middle;
     background: $surface;

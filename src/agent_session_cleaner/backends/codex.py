@@ -6,9 +6,9 @@ Layout under ``$CODEX_HOME`` (default ``~/.codex``)::
     archived_sessions/rollout-<local-ts>-<uuid>.jsonl     archived (flat)
     session_index.jsonl                                   append-only rename log
 
-Archiving moves the file between those two trees, so "is archived" is purely a
-question of which directory the file lives in. Every mutation is delegated to
-the codex CLI, which is non-interactive and exits 0/1.
+Archiving moves a file between those two trees, so archived state is determined
+entirely by location. Every mutation is delegated to the non-interactive Codex
+CLI, which reports success or failure through its exit status.
 """
 
 from __future__ import annotations
@@ -31,18 +31,16 @@ SESSION_INDEX_FILE = "session_index.jsonl"
 CODEX_BIN = "codex"
 TIMEOUT_SECONDS = 60.0
 
-# Mirrors INTERACTIVE_SESSION_SOURCES in codex-rs/rollout/src/lib.rs — the only
-# sources `codex resume` offers. Everything else is a sub-agent or `codex exec`
-# side-thread that the user never started by hand. Note that "vscode" also
-# covers Codex Desktop here (see ORIGINATOR_CLIENTS), which is intended: those
-# are real user-driven sessions and belong in the default view.
+# Mirrors ``INTERACTIVE_SESSION_SOURCES`` in codex-rs/rollout/src/lib.rs: these
+# are the sources offered by ``codex resume``. Everything else is a sub-agent
+# or ``codex exec`` side thread. ``vscode`` also covers Codex Desktop here (see
+# ``ORIGINATOR_CLIENTS``); both are user-initiated sessions.
 INTERACTIVE_SOURCES = frozenset({"cli", "vscode", "atlas", "chatgpt"})
 
-# `session_meta.source` cannot be trusted to name the client, because
-# `SessionSource::VSCode` is the `#[default]` variant of the enum codex
-# serialises (codex-rs/protocol/src/protocol.rs). Any client that doesn't
-# declare a source is therefore recorded as "vscode" — Codex Desktop is one of
-# them. `originator` is set per client, so that is the reliable discriminator.
+# ``session_meta.source`` is not a reliable client identifier because
+# ``SessionSource::VSCode`` is the enum's ``#[default]`` variant. Clients that
+# omit a source, including Codex Desktop, are therefore recorded as ``vscode``.
+# ``originator`` is client-specific and provides the reliable distinction.
 ORIGINATOR_CLIENTS = {
     "codex-tui": "cli",
     "codex_cli_rs": "cli",  # DEFAULT_ORIGINATOR
@@ -144,11 +142,10 @@ def _session_meta(line: str) -> dict:
 
 
 def _read_head(path: Path) -> tuple[dict, str | None]:
-    """One pass over the head of a rollout: its metadata and opening message.
+    """Read a rollout's metadata and opening message in one pass.
 
-    Both come from the same handful of lines, so reading them together halves
-    the file opens during discovery — with a few hundred sessions that is the
-    difference between a listing that appears instantly and one that stutters.
+    Both live near the start of the file. Reading them together halves the file
+    opens during discovery and avoids visible stalls on large session trees.
     """
     meta: dict = {}
     try:
@@ -182,7 +179,11 @@ def load_session(path: Path, *, archived: bool, names: dict[str, str]) -> Sessio
     match = _ROLLOUT_RE.match(path.name)
     meta, opening = _read_head(path)
 
-    session_id = meta.get("session_id") or meta.get("id")
+    # Prefer ``id`` deliberately. In sub-agent rollouts, ``session_id`` contains
+    # the parent's thread ID (matching ``parent_thread_id`` in all 58 samples
+    # inspected), while ``id`` matches the UUID in the filename. Reversing the
+    # order would make copy-resume and delete target the parent session.
+    session_id = meta.get("id") or meta.get("session_id")
     if not isinstance(session_id, str) or not session_id:
         if match is None:
             return None
@@ -200,18 +201,34 @@ def load_session(path: Path, *, archived: bool, names: dict[str, str]) -> Sessio
     originator = meta.get("originator") if isinstance(meta.get("originator"), str) else None
     name = names.get(session_id)
     title = name or opening or ""
+    # Codex has represented this relationship three ways. Across 81 sub-agent
+    # rollouts inspected locally:
+    #
+    #   0.133.0        no link recorded at all (5 files); the transcript does
+    #                  not mention any other session, so it is unrecoverable
+    #   0.135–0.136    `forked_from_id` (4 files)
+    #   later          `parent_thread_id`, alongside `multi_agent_version` (72)
+    #
+    # Limit the fallback to sub-agents. On ordinary sessions,
+    # ``forked_from_id`` means the user forked a resumable conversation; it does
+    # not identify a disposable side thread.
+    parent = meta.get("parent_thread_id")
+    if not parent and source == "subagent":
+        parent = meta.get("forked_from_id")
 
     return Session(
         backend="codex",
         path=path,
         session_id=session_id,
-        title=condense(title) if title else "(无消息)",
+        title=condense(title) if title else "(空会话)",
         client=_resolve_client(source, subagent_kind, originator),
         updated_at=datetime.fromtimestamp(stat.st_mtime),
         size=stat.st_size,
         archived=archived,
         named=bool(name),
         noise=source not in INTERACTIVE_SOURCES,
+        side_thread=source == "subagent",
+        parent_id=parent if isinstance(parent, str) and parent else None,
         cwd=meta.get("cwd") if isinstance(meta.get("cwd"), str) else None,
         version=meta.get("cli_version") if isinstance(meta.get("cli_version"), str) else None,
         created_at=created_at,
@@ -230,8 +247,11 @@ class CodexBackend:
     shortcut = "x"
     supports_archive = True
     default_client = "cli"
-    noise_label = "子代理和自动化会话"
     empty_label = None
+    #: A sub-agent rollout records the conversation that spawned it, so once
+    #: that conversation is deleted the rollout is provably unreachable —
+    #: `codex resume` will never offer it and nothing else refers to it.
+    orphan_label = "孤立的子代理会话"
     requires_cli = CODEX_BIN
 
     def __init__(self, home: Path | None = None) -> None:
@@ -269,9 +289,11 @@ class CodexBackend:
         return found
 
     def load_messages(self, session: Session) -> list[Message]:
-        """`event_msg` records carry the human-facing text; the parallel
-        `response_item` stream also holds injected `<environment_context>`
-        blocks we don't want."""
+        """Load human-facing text from ``event_msg`` records.
+
+        The parallel ``response_item`` stream also contains injected
+        ``<environment_context>`` blocks, so it is intentionally ignored.
+        """
         messages: list[Message] = []
         try:
             with session.path.open(encoding="utf-8", errors="replace") as fh:
@@ -300,7 +322,7 @@ class CodexBackend:
         CLI always acts on the same tree we listed."""
         executable = shutil.which(CODEX_BIN)
         if executable is None:
-            return OpResult(False, "没有安装 Codex 命令行工具，无法修改会话")
+            return OpResult(False, "未找到 codex 命令，无法修改会话")
 
         try:
             process = await asyncio.create_subprocess_exec(
@@ -311,20 +333,21 @@ class CodexBackend:
                 env={**os.environ, "CODEX_HOME": str(self.home)},
             )
         except OSError as error:
-            return OpResult(False, f"无法运行 Codex：{error}")
+            return OpResult(False, f"无法启动 codex：{error}")
 
         try:
             stdout, stderr = await asyncio.wait_for(process.communicate(), TIMEOUT_SECONDS)
         except TimeoutError:
             process.kill()
             await process.wait()
-            return OpResult(False, f"Codex 没有响应（等待超过 {TIMEOUT_SECONDS:.0f} 秒）")
+            return OpResult(False, f"codex 在 {TIMEOUT_SECONDS:.0f} 秒内没有响应")
 
         if process.returncode == 0:
             # The CLI's own wording ("Archived session <uuid>.") is for scripts;
             # the caller phrases the success message for people.
             return OpResult(True, "")
-        return OpResult(False, _last_line(stderr) or _last_line(stdout) or "操作失败")
+        complaint = _last_line(stderr) or _last_line(stdout)
+        return OpResult(False, complaint or "codex 未说明失败原因")
 
     async def archive(self, session: Session) -> OpResult:
         return await self._run("archive", session.session_id)

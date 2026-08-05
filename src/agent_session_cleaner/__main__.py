@@ -18,29 +18,36 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(
         prog="agent-session-cleaner",
-        description="翻看和清理 Codex、Claude Code 的历史会话。",
+        description="浏览和清理 Codex、Claude Code 的历史会话。",
+        add_help=False,
     )
+    parser.add_argument("-h", "--help", action="help", help="显示帮助并退出")
     parser.add_argument(
         "agent",
         nargs="?",
         choices=BACKEND_IDS,
-        help="要清理哪个；不填就先让你选",
+        help="要清理的会话来源；省略时打开选择界面",
     )
     parser.add_argument(
         "--codex-home",
         type=Path,
         default=None,
         metavar="目录",
-        help="Codex 的数据目录，默认 ~/.codex",
+        help="Codex 会话数据目录（默认：~/.codex）",
     )
     parser.add_argument(
         "--claude-home",
         type=Path,
         default=None,
         metavar="目录",
-        help="Claude Code 的数据目录，默认 ~/.claude",
+        help="Claude Code 会话数据目录（默认：~/.claude）",
     )
-    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
+        help="显示版本号并退出",
+    )
     args = parser.parse_args()
 
     homes = {
@@ -57,7 +64,7 @@ def main() -> None:
     backend = build(agent, homes.get(agent))
     if not backend.home.is_dir():
         label = BACKEND_CLASSES[agent].label
-        parser.error(f"没有找到 {label} 的会话记录（{backend.home} 不存在）")
+        parser.error(f"找不到 {label} 会话目录：{backend.home}")
 
     SessionCleanerApp(backend).run()
 

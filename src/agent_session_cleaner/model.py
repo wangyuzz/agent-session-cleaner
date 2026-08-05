@@ -1,8 +1,8 @@
-"""Backend-agnostic data types shared by every agent.
+"""Backend-neutral data types shared by all agents.
 
 The two agents store sessions very differently, so anything backend-specific
 (how a title is found, what counts as noise, whether archiving exists at all)
-is resolved inside the backend and flattened into these types.
+is resolved by each backend and normalized into these types.
 """
 
 from __future__ import annotations
@@ -28,8 +28,14 @@ class Session:
     archived: bool = False
     #: Title came from a name the user assigned, so it deserves emphasis.
     named: bool = False
-    #: A side-thread or an empty session: hidden until the user asks for it.
+    #: A side thread or empty session: nothing a person intentionally started.
     noise: bool = False
+    #: A side thread spawned by the agent rather than opened by a person. If
+    #: ``parent_id`` is unset, the relationship was not recorded; that does not
+    #: prove the session had no parent. See ``orphans``.
+    side_thread: bool = False
+    #: The session that started this one, when the agent records the link.
+    parent_id: str | None = None
     cwd: str | None = None
     version: str | None = None
     created_at: datetime | None = None
@@ -38,9 +44,9 @@ class Session:
     def recency_at(self) -> datetime:
         """When this session started, for ordering and display.
 
-        Prefers a recorded start time over mtime: bulk rewrites of a session
-        tree (an agent upgrade/migration will do this) reset every mtime to the
-        same instant, while the recorded time is written once.
+        Prefer the recorded start time over mtime. An upgrade or migration may
+        rewrite the entire session tree and collapse mtimes to one instant,
+        while the original start time remains stable.
         """
         return self.created_at or self.updated_at
 
@@ -56,6 +62,17 @@ class Message:
 class OpResult:
     ok: bool
     message: str
+
+
+def orphans(sessions: list[Session]) -> list[Session]:
+    """Return sub-agent sessions whose parent is no longer on disk.
+
+    A sub-agent session depends on the conversation that spawned it and cannot
+    be resumed once that parent is gone. The function must receive the complete
+    listing: an archived parent still exists, so its children are not orphans.
+    """
+    known = {session.session_id for session in sessions}
+    return [s for s in sessions if s.parent_id and s.parent_id not in known]
 
 
 def condense(text: str, limit: int = MAX_TITLE_CHARS) -> str:

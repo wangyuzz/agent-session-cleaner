@@ -25,13 +25,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from agent_session_cleaner import __version__, clipboard
+from agent_session_cleaner import __version__, clipboard, model
 from agent_session_cleaner import app as app_module
 from agent_session_cleaner.app import ConfirmScreen, SessionCleanerApp, SessionRow
 from agent_session_cleaner.backends import ClaudeBackend, CodexBackend
 from agent_session_cleaner.backends import claude as claude_backend
 from agent_session_cleaner.backends import codex as codex_backend
-from agent_session_cleaner.model import MAX_MESSAGE_CHARS, Session
+from agent_session_cleaner.model import MAX_MESSAGE_CHARS, Message, Session
 from agent_session_cleaner.picker import AgentPicker, AgentRow
 
 checks: list[tuple[bool, str]] = []
@@ -114,6 +114,17 @@ def test_codex_data() -> None:
         f"识别出客户端: {sorted({s.client for s in found})}",
     )
 
+    # A sub-agent rollout records its parent's thread id under `session_id`, so
+    # taking that field at face value makes it answer to the wrong session —
+    # and `codex delete` would then be pointed at the parent. The filename uuid
+    # is the tiebreaker: it always matches the rollout's own `id`.
+    named = [(s, codex_backend._ROLLOUT_RE.match(s.path.name)) for s in found]
+    borrowed = [s for s, m in named if m is not None and m["uuid"] != s.session_id]
+    check(
+        not borrowed,
+        f"每个会话用的都是自己的 id，不是上级的（{len(borrowed)} 个与文件名对不上）",
+    )
+
     subdir = codex_backend.ARCHIVED_SESSIONS_SUBDIR
     check(
         all(s.archived == (subdir in s.path.parts) for s in found),
@@ -170,8 +181,8 @@ def test_claude_data() -> None:
         f"从记录里取到创建时间，只有 {len(undated)} 个空会话回退到 mtime",
     )
     check(
-        sum(s.title != "(无消息)" for s in found) > len(found) * 0.8,
-        f"{sum(s.title != '(无消息)' for s in found)}/{len(found)} 个解析出标题",
+        sum(s.title != "(空会话)" for s in found) > len(found) * 0.8,
+        f"{sum(s.title != '(空会话)' for s in found)}/{len(found)} 个解析出标题",
     )
     # How many empty sessions exist is user state (and `E` can take them to
     # zero), so check the invariant: `noise` must mean "no real user message".
@@ -224,35 +235,79 @@ def test_claude_data() -> None:
 
 
 def _codex_rollout(
-    session_id: str, *, opening: str, cwd: str, originator: str, source: object
+    session_id: str,
+    *,
+    opening: str,
+    cwd: str,
+    originator: str,
+    source: object,
+    parent: str | None = None,
+    field: str = "parent_thread_id",
 ) -> list[dict]:
+    payload = {
+        "id": session_id,
+        "session_id": session_id,
+        "cwd": cwd,
+        "originator": originator,
+        "source": source,
+        "cli_version": "0.50.0",
+    }
+    if parent is not None:
+        payload[field] = parent
+        if field == "parent_thread_id":
+            # Codex puts the *parent's* thread id in `session_id` on a sub-agent
+            # rollout. The fixture copies that quirk on purpose: read the wrong
+            # field and the sub-agent starts answering to its parent's id.
+            payload["session_id"] = parent
     return [
         {
             "type": "session_meta",
-            "payload": {
-                "session_id": session_id,
-                "cwd": cwd,
-                "originator": originator,
-                "source": source,
-                "cli_version": "0.50.0",
-            },
+            "payload": payload,
         },
         {"type": "event_msg", "payload": {"type": "user_message", "message": opening}},
         {"type": "event_msg", "payload": {"type": "agent_message", "message": f"好的，{opening}"}},
     ]
 
 
-#: (opening, cwd, originator, source). The three "proxy" titles give the search
-#: section something with more than one hit but fewer than all.
+_GUARDIAN = {"subagent": {"other": "guardian"}}
+
+#: One synthetic rollout. `parent` is an index into the table when the parent is
+#: also in it, the string "gone" when it points at a session that no longer
+#: exists, and None when the rollout records no parent at all. `field` is which
+#: of Codex's two spellings carries it.
+_Fixture = collections.namedtuple(
+    "_Fixture", "opening cwd originator source parent field", defaults=(None, "parent_thread_id")
+)
+
+#: The three "proxy" titles give the search section something with more than one
+#: hit but fewer than all.
 _CODEX_FIXTURE = [
-    ("修复 proxy 超时问题", "/Users/me/alpha", "codex_cli_rs", "cli"),
-    ("整理 proxy 配置文件", "/Users/me/alpha", "codex-tui", "cli"),
-    ("给 proxy 加上重试", "/Users/me/beta", "Codex Desktop", "vscode"),
-    ("写一份周报", "/Users/me/beta", "codex_cli_rs", "cli"),
-    ("调研数据库迁移", "/Users/me/gamma", "codex_cli_rs", "cli"),
-    ("重构登录流程", "/Users/me/gamma", "Codex Desktop", "vscode"),
-    ("自动化跑的批处理", "/Users/me/alpha", "codex_exec", "exec"),
-    ("子代理的侧线程", "/Users/me/alpha", "codex_cli_rs", {"subagent": {"other": "guardian"}}),
+    _Fixture("修复 proxy 超时问题", "/Users/me/alpha", "codex_cli_rs", "cli"),
+    _Fixture("整理 proxy 配置文件", "/Users/me/alpha", "codex-tui", "cli"),
+    _Fixture("给 proxy 加上重试", "/Users/me/beta", "Codex Desktop", "vscode"),
+    _Fixture("写一份周报", "/Users/me/beta", "codex_cli_rs", "cli"),
+    _Fixture("调研数据库迁移", "/Users/me/gamma", "codex_cli_rs", "cli"),
+    _Fixture("重构登录流程", "/Users/me/gamma", "Codex Desktop", "vscode"),
+    _Fixture("自动化跑的批处理", "/Users/me/alpha", "codex_exec", "exec"),
+    # 0.133.0 wrote no link at all; nothing can be reconstructed from it.
+    _Fixture("最早期没记上级的侧线程", "/Users/me/alpha", "codex_cli_rs", _GUARDIAN),
+    # Two under the same parent, so the tree has both a `├─` and a `└─`.
+    _Fixture("上级还在的侧线程", "/Users/me/alpha", "codex_cli_rs", _GUARDIAN, 0),
+    _Fixture("同一个上级的第二条侧线程", "/Users/me/alpha", "codex_cli_rs", _GUARDIAN, 0),
+    # 0.135 ~ 0.136 spelled it `forked_from_id`.
+    _Fixture(
+        "早期用 forked_from_id 的侧线程", "/Users/me/beta", "codex_cli_rs", _GUARDIAN,
+        2, "forked_from_id",
+    ),
+    _Fixture("上级已经删掉的侧线程", "/Users/me/beta", "codex_cli_rs", _GUARDIAN, "gone"),
+    _Fixture("另一个没了上级的侧线程", "/Users/me/gamma", "codex_cli_rs", _GUARDIAN, "gone"),
+    # An ordinary session forked from a conversation that is gone. Same field as
+    # the early sub-agents, completely different meaning: this is a real
+    # conversation you can resume, and it must never count as stranded.
+    _Fixture(
+        "从别的对话分叉出来的", "/Users/me/gamma", "codex_cli_rs", "cli",
+        "gone", "forked_from_id",
+    ),
 ]
 
 
@@ -260,9 +315,12 @@ def make_codex_fixture() -> Path:
     """A synthetic CODEX_HOME for everything that only reads and renders."""
     home = Path(tempfile.mkdtemp(prefix="asc-codexfix-"))
     start = datetime(2026, 7, 20, 15, 0)
-    for offset, (opening, cwd, originator, source) in enumerate(_CODEX_FIXTURE):
+    # Ids first: a sub-agent has to name a parent that is written in the same
+    # pass, so they cannot be minted row by row.
+    ids = [str(uuid.uuid4()) for _ in _CODEX_FIXTURE]
+    for offset, row in enumerate(_CODEX_FIXTURE):
         when = start - timedelta(hours=offset)
-        session_id = str(uuid.uuid4())
+        session_id = ids[offset]
         path = (
             home
             / "sessions"
@@ -271,10 +329,19 @@ def make_codex_fixture() -> Path:
             / f"{when:%d}"
             / f"rollout-{when:%Y-%m-%dT%H-%M-%S}-{session_id}.jsonl"
         )
+        parent_id = str(uuid.uuid4()) if row.parent == "gone" else None
+        if isinstance(row.parent, int):
+            parent_id = ids[row.parent]
         _write_jsonl(
             path,
             _codex_rollout(
-                session_id, opening=opening, cwd=cwd, originator=originator, source=source
+                session_id,
+                opening=row.opening,
+                cwd=row.cwd,
+                originator=row.originator,
+                source=row.source,
+                parent=parent_id,
+                field=row.field,
             ),
         )
     return home
@@ -298,7 +365,7 @@ async def test_wording_and_missing_deps(codex_home: Path, claude_home: Path) -> 
             # An empty session would render no replies at all, which would pass
             # the "no wrong signature" reading of this check for the wrong reason.
             app.query_one("#sessions").index = next(
-                i for i, s in enumerate(app._visible) if not s.noise
+                i for i, s in enumerate(app._sessions) if not s.noise
             )
             await pilot.pause(0.6)
             replies = [str(w.visual) for w in app.query(".msg.agent")]
@@ -334,7 +401,7 @@ async def test_wording_and_missing_deps(codex_home: Path, claude_home: Path) -> 
             rows = list(picker.query(AgentRow))
             check(
                 not any(r.usable for r in rows)
-                and all("还没有使用记录" in str(r._label.visual) for r in rows),
+                and all("暂无会话记录" in str(r._label.visual) for r in rows),
                 "没有会话记录时如实说明",
             )
             await pilot.press("c")
@@ -372,7 +439,7 @@ async def test_wording_and_missing_deps(codex_home: Path, claude_home: Path) -> 
         async with app.run_test(size=(120, 30)) as pilot:
             await pilot.pause()
             await pilot.pause(0.6)
-            check("没有安装" in _status(app), f"启动即提示：{_status(app)}")
+            check("命令行工具" in _status(app), f"启动即提示：{_status(app)}")
             check(
                 all(
                     app.check_action(action, ()) is False
@@ -452,7 +519,7 @@ async def test_copy_resume(codex_home: Path, claude_home: Path) -> None:
                     and session.session_id in copied,
                     f"{backend.label}：{copied}",
                 )
-                check("已复制" in _status(app), "状态栏确认已复制")
+                check("已拷贝到剪贴板" in _status(app), f"状态栏确认拷贝成功：{_status(app)[:24]}")
     finally:
         os.environ["PATH"] = saved
 
@@ -477,8 +544,9 @@ async def test_search(codex_home: Path) -> None:
         bar = app.query_one("#search-bar")
 
         needle = "proxy"
-        hits = sum(needle in app._haystack(s).lower() for s in app._visible)
-        check(1 < hits < len(app._visible), f"素材里「{needle}」命中 {hits}/{len(app._visible)} 条")
+        total = len(app._sessions)
+        hits = sum(needle in app._haystack(s).lower() for s in app._sessions)
+        check(1 < hits < total, f"素材里「{needle}」命中 {hits}/{total} 条")
 
         await pilot.press("slash")
         await pilot.pause()
@@ -507,9 +575,12 @@ async def test_search(codex_home: Path) -> None:
         await pilot.pause()
         await pilot.press("n")
         await pilot.pause()
-        check(listing.index == matches[0] and "已回绕" in _status(app), "末尾按 n 回绕")
+        check(
+            listing.index == matches[0] and "已从另一端继续" in _status(app),
+            "末尾按 n 从列表另一端继续",
+        )
 
-        origin = next(i for i in range(len(app._visible)) if i not in matches)
+        origin = next(i for i in range(len(app._sessions)) if i not in matches)
         listing.index = origin
         await pilot.pause()
         await pilot.press("slash")
@@ -525,10 +596,188 @@ async def test_search(codex_home: Path) -> None:
         for char in "zzqzz":
             await pilot.press(char)
         await pilot.pause(0.3)
-        check("没有找到" in _status(app), f"无匹配时提示：{_status(app)}")
+        check("找不到" in _status(app), f"无匹配时提示：{_status(app)}")
         check(app.is_running, "搜索时输入 q 不会退出程序")
         await pilot.press("escape")
         await pilot.pause()
+
+
+# ========================================= [3.5] 会话树与孤立的子代理（只读）
+
+
+async def test_orphans(codex_home: Path) -> None:
+    print("\n[3.5] 会话树 / 孤立的子代理会话")
+    backend = CodexBackend(codex_home)
+    found = backend.discover()
+    by_title = {s.title: s for s in found}
+
+    check(
+        by_title["上级还在的侧线程"].parent_id == by_title["修复 proxy 超时问题"].session_id,
+        "从 parent_thread_id 解析出上级会话",
+    )
+    check(
+        by_title["最早期没记上级的侧线程"].parent_id is None,
+        "0.133.0 那批根本没记上级，解析为 None",
+    )
+    # Codex renamed this field twice; both spellings have to land in parent_id.
+    check(
+        by_title["早期用 forked_from_id 的侧线程"].parent_id
+        == by_title["给 proxy 加上重试"].session_id,
+        "0.135~0.136 写在 forked_from_id 里的上级也认得出来",
+    )
+    # Same field on an ordinary session means something else entirely.
+    forked = by_title["从别的对话分叉出来的"]
+    check(
+        forked.parent_id is None,
+        "普通会话的 forked_from_id 是分叉，不当上级读——那是条能接着聊的对话",
+    )
+    child = by_title["上级还在的侧线程"]
+    check(
+        child.session_id != child.parent_id and child.session_id in child.path.name,
+        "子代理用自己的 id，没有被 session_id 字段里的上级 id 顶替",
+    )
+
+    stranded = {s.title for s in model.orphans(found)}
+    check(
+        stranded == {"上级已经删掉的侧线程", "另一个没了上级的侧线程"},
+        f"只有上级真的不见了的才算孤立：{sorted(stranded)}",
+    )
+    check(
+        "子代理的侧线程" not in stranded,
+        "上级不明的会话不算孤立——查不出归属不等于没有归属",
+    )
+
+    # 归档只是换了个目录，父会话还在，孩子就不该被当成孤儿。
+    parent = by_title["修复 proxy 超时问题"]
+    archived_parent = Session(**{**parent.__dict__, "archived": True})
+    others = [s for s in found if s.session_id != parent.session_id]
+    check(
+        not any(s.title == "上级还在的侧线程" for s in model.orphans([archived_parent, *others])),
+        "上级只是被归档时不算孤立",
+    )
+
+    # 树的形状：孩子紧跟在自己的上级后面，连接线由是不是最后一个孩子决定。
+    laid_out = app_module._arrange(found, {s.session_id for s in model.orphans(found)})
+    prefixes = {session.title: prefix for session, prefix in laid_out}
+    order = [session.title for session, _ in laid_out]
+    check(
+        order.index("上级还在的侧线程") == order.index("修复 proxy 超时问题") + 1
+        and order.index("同一个上级的第二条侧线程") == order.index("修复 proxy 超时问题") + 2,
+        f"子代理紧跟在上级后面：{order[:3]}",
+    )
+    check(
+        prefixes["修复 proxy 超时问题"] == ""
+        and prefixes["上级还在的侧线程"] == app_module.TREE_BRANCH
+        and prefixes["同一个上级的第二条侧线程"] == app_module.TREE_LAST,
+        "上级顶格，第一个孩子挂 ├─，最后一个挂 └─",
+    )
+    check(
+        prefixes["上级已经删掉的侧线程"] == app_module.TREE_SEVERED,
+        "孤立的挂一段断掉的连接线，留在顶层",
+    )
+    check(
+        prefixes["最早期没记上级的侧线程"] == app_module.TREE_UNKNOWN,
+        "上级不明的子代理有自己的记号，不会看着像一条普通会话",
+    )
+    check(prefixes["写一份周报"] == "", "没有子代理的普通会话不加任何前缀")
+    check(prefixes["从别的对话分叉出来的"] == "", "分叉出来的普通会话就是普通会话")
+    check(
+        prefixes["早期用 forked_from_id 的侧线程"] == app_module.TREE_LAST,
+        "认出上级之后，早期的子代理也进树",
+    )
+
+    # 级联：主会话动，它下面的子代理跟着动，而且排在前面
+    app_for_cascade = SessionCleanerApp(backend)
+    app_for_cascade._sessions = [s for s, _ in laid_out]
+    parent = by_title["修复 proxy 超时问题"]
+    chain = app_for_cascade._cascade("delete", parent)
+    check(
+        [s.title for s in chain[:-1]] == ["上级还在的侧线程", "同一个上级的第二条侧线程"]
+        and chain[-1] is parent,
+        f"删除时子代理排在主会话前面：{[s.title for s in chain]}",
+    )
+    check(
+        app_for_cascade._cascade("delete", by_title["写一份周报"])
+        == [by_title["写一份周报"]],
+        "没有子代理的会话，级联结果就是它自己",
+    )
+    check(
+        len(app_for_cascade._cascade("unarchive", parent)) == 1,
+        "取消归档只带上真的归了档的子代理，这里一个都没有",
+    )
+    swept = app_for_cascade._with_sub_agents([parent, by_title["写一份周报"]])
+    check(
+        len(swept) == 4 and len({s.session_id for s in swept}) == 4,
+        f"批量删除展开成 {len(swept)} 条且不重复",
+    )
+    check(
+        len(laid_out) == len(found) and set(prefixes) == {s.title for s in found},
+        f"排完树之后一条都没丢（{len(laid_out)}/{len(found)}）",
+    )
+
+    # 互相认对方当上级时不能整段消失，也不能转圈。
+    def _fake(session_id: str, parent: str) -> Session:
+        return Session(
+            backend="codex",
+            path=Path(f"/x/{session_id}.jsonl"),
+            session_id=session_id,
+            title=session_id,
+            client="cli",
+            updated_at=datetime(2026, 1, 1),
+            size=0,
+            parent_id=parent,
+        )
+
+    tangled = app_module._arrange([_fake("甲", "乙"), _fake("乙", "甲")], set())
+    check(len(tangled) == 2, f"上级互相指向时两条都还在（{len(tangled)} 条）")
+
+    app = SessionCleanerApp(backend)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        await pilot.pause(0.4)
+        banner = str(app.query_one("#banner").visual)
+        check("2 个孤立的子代理会话" in banner, f"顶栏报出孤立数量：{banner.strip()}")
+        check("按 O" not in banner, "顶栏只显示孤立数量，不附带操作提示")
+
+        rows = {r.session.title: r for r in app.query(SessionRow)}
+        check(
+            app_module.TREE_BRANCH in str(rows["上级还在的侧线程"]._label.visual),
+            "连接线真的画在了行上",
+        )
+        stranded_rows = {t for t, r in rows.items() if r.has_class("-orphan")}
+        check(
+            stranded_rows == {"上级已经删掉的侧线程", "另一个没了上级的侧线程"},
+            f"只有孤立的行带 -orphan 类：{sorted(stranded_rows)}",
+        )
+        check(
+            not any(r.has_class("-archived") for r in rows.values()),
+            "孤立不是归档，两种状态不共用一个类",
+        )
+
+        listing = app.query_one("#sessions")
+        for title, expected in (
+            ("上级已经删掉的侧线程", "来源会话已被删除"),
+            ("上级还在的侧线程", "由会话"),
+            ("最早期没记上级的侧线程", "未记录来源会话"),
+            ("写一份周报", None),
+        ):
+            listing.index = next(i for i, s in enumerate(app._sessions) if s.title == title)
+            await pilot.pause(0.4)
+            header = str(app.query_one("#detail-header").visual)
+            if expected is None:
+                check("来源会话" not in header, f"普通会话不提来源：{title}")
+            else:
+                check(expected in header, f"详情里说明上级去向：{title} → {expected}")
+
+        await pilot.press("O")
+        await pilot.pause()
+        check(isinstance(app.screen, ConfirmScreen), "O 弹出确认框")
+        headline = str(app.screen._subject).splitlines()[0]
+        check("共 2 个孤立的子代理会话" in headline, f"确认框只点名孤立的：{headline}")
+        check("来源会话已被删除" in app.screen._body, f"说明为什么可以删：{app.screen._body}")
+        await pilot.press("escape")
+        await pilot.pause()
+        check(all(s.path.exists() for s in found), "取消之后一个都没动")
 
 
 # ================================================================ [4] 选择界面
@@ -612,8 +861,26 @@ def make_codex_home(count: int = 6) -> Path | None:
     if len(picked) < 4:  # the section archives, unarchives and deletes several
         return None
 
+    # One sub-agent rollout whose parent is deliberately left behind, so the
+    # scratch home really does contain an orphan for `O` to sweep. The CLI has
+    # to agree that a sub-agent id is deletable, which is the point of driving
+    # it here rather than asserting on our own bookkeeping.
+    kept = {codex_backend.load_session(p, archived=False, names={}).session_id for p in picked}
+    orphan = None
+    # And the sub-agents *of* the picked sessions, so the cascade has something
+    # real to cascade to.
+    family = []
+    for path in candidates:
+        session = codex_backend.load_session(path, archived=False, names={})
+        if session is None or not session.parent_id:
+            continue
+        if session.parent_id in kept:
+            family.append(path)
+        elif orphan is None:
+            orphan = path
+
     home = Path(tempfile.mkdtemp(prefix="asc-codex-"))
-    for path in picked:
+    for path in [*picked, *family, *filter(None, [orphan])]:
         destination = home / path.relative_to(real)
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(path, destination)
@@ -627,7 +894,7 @@ async def test_codex_mutations(home: Path) -> None:
         await pilot.pause()
         await pilot.pause(0.4)
         listing = app.query_one("#sessions")
-        total = len(app._visible)
+        total = len(app._sessions)
         check(total > 0, f"启动后列出 {total} 个 session")
         check(app.query("#detail-header").first() is not None, "右侧渲染出详情表头")
 
@@ -654,12 +921,10 @@ async def test_codex_mutations(home: Path) -> None:
         archived_dir = home / "archived_sessions"
         moved = list(archived_dir.glob(f"*{target.session_id}.jsonl"))
         check(bool(moved), f"a 归档：{_status(app)}")
-        check(len(app._visible) == total - 1, "归档后从活跃视图消失")
+        check(len(app._sessions) == total, "归档后仍然留在列表里，只是变成已归档")
 
-        await pilot.press("v")
-        await pilot.pause()
         rows = [r.session for r in app.query(SessionRow)]
-        check(any(s.session_id == target.session_id and s.archived for s in rows), "归档视图可见")
+        check(any(s.session_id == target.session_id and s.archived for s in rows), "归档行可见")
         stripes = [r.has_class("-odd") for r in app.query(SessionRow)]
         check(stripes[:4] == [False, True, False, True], "斑马纹逐行交替")
         check(
@@ -668,17 +933,95 @@ async def test_codex_mutations(home: Path) -> None:
         )
 
         listing.index = next(
-            i for i, s in enumerate(app._visible) if s.session_id == target.session_id
+            i for i, s in enumerate(app._sessions) if s.session_id == target.session_id
         )
         await pilot.pause()
         await pilot.press("u")
         await _settle(pilot, app)
         check(not list(archived_dir.glob(f"*{target.session_id}.jsonl")), "u 取消归档")
-        await pilot.press("v")
-        await pilot.pause()
 
         check(app.check_action("delete_empty", ()) is False, "E 键在 Codex 模式下被隐藏")
-        check(app.check_action("toggle_sources", ()) is not False, "s 键在 Codex 模式下可用")
+        check(app.check_action("delete_orphans", ()) is not False, "O 键在 Codex 模式下可用")
+
+        # 级联：codex 自己的 archive/delete 一次只动一条，孤儿就是这么来的
+        parents = [s for s in app._sessions if app._descendants(s)]
+        if not parents:
+            skip("素材里没有带子代理的会话，跳过级联检查")
+        else:
+            head = parents[0]
+            kids = app._descendants(head)
+            listing.index = app._sessions.index(head)
+            await pilot.pause()
+            await pilot.press("a")
+            await _settle(pilot, app)
+            moved = [
+                s
+                for s in app._sessions
+                if s.session_id in {k.session_id for k in kids} and s.archived
+            ]
+            check(
+                len(moved) == len(kids),
+                f"a 归档主会话时 {len(moved)}/{len(kids)} 个子代理跟着归档：{_status(app)}",
+            )
+            check(
+                f"及 {len(kids)} 个子代理会话" in _status(app),
+                f"状态栏说清楚带上了几个：{_status(app)}",
+            )
+
+            listing.index = next(
+                i for i, s in enumerate(app._sessions) if s.session_id == head.session_id
+            )
+            await pilot.pause()
+            await pilot.press("u")
+            await _settle(pilot, app)
+            back = [
+                s
+                for s in app._sessions
+                if s.session_id in {k.session_id for k in kids} and not s.archived
+            ]
+            check(len(back) == len(kids), f"u 把它们一起放回来：{_status(app)}")
+
+            listing.index = next(
+                i for i, s in enumerate(app._sessions) if s.session_id == head.session_id
+            )
+            await pilot.pause()
+            await pilot.press("d")
+            await pilot.pause()
+            check(
+                f"同时删除其下的 {len(kids)} 个子代理会话" in app.screen._body,
+                f"确认框先说清楚要连带删几个：{app.screen._body}",
+            )
+            await pilot.press("y")
+            await _settle(pilot, app)
+            check(
+                not head.path.exists() and not any(k.path.exists() for k in kids),
+                f"d 把主会话和 {len(kids)} 个子代理一起删掉，不留孤儿：{_status(app)}",
+            )
+            check(
+                not any(s.session_id == head.session_id for s in model.orphans(app._sessions)),
+                "删完之后没有新的孤儿冒出来",
+            )
+
+        # O：交给 codex 命令行工具删掉上级已经不在的子代理会话
+        stranded = model.orphans(app._sessions)
+        if not stranded:
+            skip("素材里没有孤立的子代理会话，跳过 O 的删除检查")
+        else:
+            await pilot.press("O")
+            await pilot.pause()
+            check(isinstance(app.screen, ConfirmScreen), "O 弹出确认框")
+            await pilot.press("y")
+            await _settle(pilot, app)
+            check(
+                not any(s.path.exists() for s in stranded),
+                f"O 删掉了 {len(stranded)} 个孤立会话：{_status(app)}",
+            )
+            await pilot.press("O")
+            await pilot.pause()
+            check(
+                not isinstance(app.screen, ConfirmScreen) and "没有" in _status(app),
+                f"清干净之后再按 O 直接说没有：{_status(app)}",
+            )
 
         victim = app._selected()
         await pilot.press("d")
@@ -883,27 +1226,22 @@ async def test_claude_mutations(home: Path) -> None:
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         await pilot.pause(0.4)
-        total = len(app._visible)
+        total = len(app._sessions)
         check(total > 0, f"启动后列出 {total} 个 session")
 
         # 归档相关的键在 Claude 模式下必须消失
-        archive_keys = (
-            ("a", "archive"),
-            ("u", "unarchive"),
-            ("v", "toggle_view"),
-            ("D", "delete_archived"),
-        )
+        archive_keys = (("a", "archive"), ("u", "unarchive"), ("D", "delete_archived"))
         for key, action in archive_keys:
             if app.check_action(action, ()) is not False:
                 check(False, f"{key} 键（{action}）在 Claude 模式下应当被隐藏")
                 break
         else:
-            check(True, "a / u / v / D 在 Claude 模式下被隐藏")
+            check(True, "a / u / D 在 Claude 模式下被隐藏")
 
-        # s 也没有意义：Claude 什么都不折叠，空会话照样列出来
-        check(app.check_action("toggle_sources", ()) is False, "s 键在 Claude 模式下被隐藏")
-        check(backend.noise_label is None and app._all_sources, "Claude 默认显示全部会话")
-        empty_rows = [s for s in app._visible if s.noise]
+        # 子代理 transcript 跟着父会话一起删，不会剩下孤儿，所以 O 也没有意义
+        check(app.check_action("delete_orphans", ()) is False, "O 键在 Claude 模式下被隐藏")
+        check(backend.orphan_label is None, "Claude 后端声明不会产生孤立会话")
+        empty_rows = [s for s in app._sessions if s.noise]
         check(bool(empty_rows), f"空会话也在列表里（{len(empty_rows)} 个）")
         check(app.check_action("delete_empty", ()) is not False, "E 键在 Claude 模式下可用")
 
@@ -914,7 +1252,7 @@ async def test_claude_mutations(home: Path) -> None:
 
         # 带 sidecar 的那条：删除时目录要一起消失
         sidecar_rows = [
-            s for s in app._visible if claude_backend.sidecar_of(s.path).is_dir()
+            s for s in app._sessions if claude_backend.sidecar_of(s.path).is_dir()
         ]
         check(bool(sidecar_rows), f"素材里有 {len(sidecar_rows)} 个带 sidecar 的 session")
         target = sidecar_rows[0]
@@ -923,7 +1261,7 @@ async def test_claude_mutations(home: Path) -> None:
         check(bool(nested), f"sidecar 里有 {len(nested)} 个子代理 transcript")
 
         listing = app.query_one("#sessions")
-        listing.index = app._visible.index(target)
+        listing.index = app._sessions.index(target)
         await pilot.pause()
         await pilot.press("d")
         await pilot.pause()
@@ -932,7 +1270,7 @@ async def test_claude_mutations(home: Path) -> None:
         await _settle(pilot, app)
         check(not target.path.exists(), f"transcript 已删除：{_status(app)}")
         check(not sidecar.exists(), "同名 sidecar 目录一并删除")
-        check(len(app._visible) == total - 1, "列表刷新")
+        check(len(app._sessions) == total - 1, "列表刷新")
 
         # session id 不匹配时必须拒绝
         survivor = app._selected()
@@ -1018,7 +1356,7 @@ def test_parsing_regressions(claude_home: Path) -> None:
         "ai-title 覆盖首条用户消息作为标题",
     )
     empty = [s for s in sessions if s.noise]
-    check(len(empty) == 3 and all(s.title == "(无消息)" for s in empty),
+    check(len(empty) == 3 and all(s.title == "(空会话)" for s in empty),
           f"空会话仍然识别为空（{len(empty)} 个）")
 
     # Only text blocks reach the reader: thinking, tool_use and tool results
@@ -1094,12 +1432,41 @@ def test_day_labels() -> None:
 async def test_ui_regressions(claude_home: Path) -> None:
     print("\n[7.2] 界面回归")
     app = SessionCleanerApp(ClaudeBackend(claude_home))
+
+    preview = Session(
+        backend="claude",
+        path=Path("/x/preview.jsonl"),
+        session_id="00000000-1111-2222-3333-444444444444",
+        title="一条很长的会话标题" * 20,
+        client="cli",
+        updated_at=datetime(2026, 8, 5, 16, 36),
+        size=0,
+        cwd="/Users/me/alpha",
+        version="0.146.0",
+        created_at=datetime(2026, 8, 5, 16, 36),
+    )
+    header = app._detail_header(preview, [Message("user", "x", 0)] * 17)
+    lines = header.plain.splitlines()
+    check(
+        lines == [
+            preview.title,
+            preview.session_id,
+            "2026-08-05 16:36 · cli · 17 条消息 · v0.146.0",
+            "/Users/me/alpha",
+        ],
+        f"详情头部按标题、ID、元数据、目录分四行：{lines[1:]}",
+    )
+    check(
+        header.no_wrap and header.overflow == "ellipsis",
+        "详情标题不换行，过长时在末尾省略",
+    )
+
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         await pilot.pause(0.5)
         listing = app.query_one("#sessions")
 
-        # 反向搜索停在原地时不该说"已回绕"
+        # 反向搜索停在原地时不该说已从另一端继续。
         app._query = "问题"
         matches = app._matches()
         check(len(matches) > 1, f"搜索「问题」命中 {len(matches)} 条")
@@ -1109,12 +1476,12 @@ async def test_ui_regressions(claude_home: Path) -> None:
         app._jump(matches[1], -1, inclusive=True)
         await pilot.pause()
         check(
-            "已回绕" not in _status(app) and listing.index == matches[1],
-            f"反向搜索停在原地时不谎报回绕：{_status(app)}",
+            "已从另一端继续" not in _status(app) and listing.index == matches[1],
+            f"反向搜索停在原地时不误报循环：{_status(app)}",
         )
         app._jump(matches[0], -1, inclusive=False)
         await pilot.pause()
-        check("已回绕" in _status(app), "真正绕回末尾时才提示")
+        check("已从另一端继续" in _status(app), "真正越过边界时才提示")
         app._query = ""
         app._apply_highlight()
 
@@ -1125,22 +1492,13 @@ async def test_ui_regressions(claude_home: Path) -> None:
         check(app.is_running and "退出" in _status(app), f"处理中按 q 不退出：{_status(app)}")
         app._busy = False
 
-        # 空列表提示只提到这个 agent 真的有的键
-        check(app._filter_hint() == "", "Claude 什么都没隐藏，就不提任何按键")
-
-    codex = SessionCleanerApp(CodexBackend(claude_home))  # 空目录，只看提示逻辑
+    codex = SessionCleanerApp(CodexBackend(claude_home))  # 空目录，只看空列表文案
     async with codex.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         await pilot.pause(0.4)
-        hint = codex._filter_hint()
-        check("v" in hint and "s" in hint, f"Codex 隐藏了东西时才提示按键：{hint.strip()}")
-        codex._show_archived = True
-        codex._all_sources = True
-        check(codex._filter_hint() == "", "全部显示出来之后不再提示")
         placeholder = str(codex.query_one(".placeholder").visual)
         check("没有会话" in placeholder, f"空目录给出说明：{placeholder.strip()}")
 
-    # 批量删除对话框不能提到当前用不上的按键
     fake = [
         Session(
             backend="codex",
@@ -1154,9 +1512,12 @@ async def test_ui_regressions(claude_home: Path) -> None:
         )
         for i in range(9)
     ]
-    dialog = app_module.confirm_bulk(fake, "已归档的会话", hidden=4)
-    check("按 s" not in dialog._body, f"批量删除提示不提按键：{dialog._body.splitlines()[-1]}")
-    check("4 个" in dialog._body, "说明有多少个是看不见的")
+    dialog = app_module.confirm_bulk(fake, "已归档的会话")
+    check(dialog._body == "删除后无法恢复。", f"没有额外说明时只讲后果：{dialog._body}")
+    with_note = app_module.confirm_bulk(
+        fake, "孤立的子代理会话", "它们的来源会话已被删除。"
+    )
+    check("来源会话" in with_note._body, f"有理由时先讲理由：{with_note._body.splitlines()[0]}")
     check(
         f"还有 {len(fake) - app_module.BULK_PREVIEW_LIMIT} 个" in str(dialog._subject),
         "标题列表过长时折叠",
@@ -1166,8 +1527,9 @@ async def test_ui_regressions(claude_home: Path) -> None:
 async def test_footer_fits(codex_home: Path, claude_home: Path) -> None:
     """The footer is the only place the keys are advertised, so it has to fit.
 
-    Textual lays the keys out in binding order and simply runs off the edge of
-    a narrow terminal, which used to take `q 退出` with it.
+    Textual lays a row of keys out and simply runs off the edge of a narrow
+    terminal, taking whatever sat at the end with it — which is why the keys are
+    split over two rows, with the ones you cannot get out without on the second.
     """
     print("\n[7.2b] 底栏宽度")
     for label, backend in (
@@ -1179,18 +1541,91 @@ async def test_footer_fits(codex_home: Path, claude_home: Path) -> None:
             async with app.run_test(size=(width, 25)) as pilot:
                 await pilot.pause()
                 await pilot.pause(0.3)
-                keys = list(app.query_one("Footer").query("FooterKey"))
-                visible = [str(k.render()).strip() for k in keys if k.region.right <= width]
-                needed = max(k.region.right for k in keys)
-                if width == 100:
+                rows = list(app.query(app_module.FooterRow))
+                check(len(rows) == 2, f"{label} 在 {width} 列下底栏是两行（{len(rows)} 行）")
+                for index, row in enumerate(rows, start=1):
+                    keys = list(row.query("FooterKey"))
+                    if not keys:
+                        continue
+                    needed = max(k.region.right for k in keys)
                     check(
                         needed <= width,
-                        f"{label} 在 {width} 列下按键全部显示（需要 {needed} 列）",
+                        f"{label} 第 {index} 行在 {width} 列下放得下（需要 {needed} 列）",
                     )
+                bottom = [str(k.render()).strip() for k in rows[1].query("FooterKey")]
                 check(
-                    any(v.startswith("q ") for v in visible),
-                    f"{label} 在 {width} 列下退出键仍然可见",
+                    any(v.startswith("q ") for v in bottom)
+                    and any(v.startswith("h ") for v in bottom),
+                    f"{label} 退出和帮助都在第二行：{bottom}",
                 )
+
+
+async def test_help(codex_home: Path, claude_home: Path) -> None:
+    """The help must describe this agent and no other.
+
+    It is gated on the same `check_action` the footer uses, so the two cannot
+    drift: whatever key is hidden is also unexplained.
+    """
+    print("\n[7.2c] 按键说明")
+
+    def _keys(app: SessionCleanerApp) -> dict[str, str]:
+        return {key: what for _, entries in app.help_sections() for key, what in entries}
+
+    codex = SessionCleanerApp(CodexBackend(codex_home))
+    claude = SessionCleanerApp(ClaudeBackend(claude_home))
+    codex_keys, claude_keys = _keys(codex), _keys(claude)
+    codex_sections = {
+        name: {key for key, _ in entries} for name, entries in codex.help_sections()
+    }
+
+    check(
+        all(k in codex_keys for k in ("a", "u", "D", "O")) and "E" not in codex_keys,
+        f"Codex 的说明里没有 Claude 专有的键：{sorted(codex_keys)}",
+    )
+    check(
+        "E" in claude_keys and not any(k in claude_keys for k in ("a", "u", "D", "O")),
+        f"Claude 的说明里没有 Codex 专有的键：{sorted(claude_keys)}",
+    )
+    check(
+        all("↑ ↓ / j k" in keys and "g / G" in keys for keys in (codex_keys, claude_keys)),
+        "两边都解释了 j/k、g/G 这些底栏上没有的键",
+    )
+    check(
+        all(k in codex_keys for k in ("c", "d", "/", "?", "n / N", "Esc", "r", "h", "q")),
+        "常用键一个都没漏",
+    )
+    check(
+        {"Esc", "r"} <= codex_sections["其他"]
+        and not {"Esc", "r"} & codex_sections["搜索会话"],
+        "Esc 和 r 归在“其他”一节",
+    )
+
+    # 没装命令行工具的时候，改不了的东西也不该在说明里许诺
+    saved = os.environ["PATH"]
+    os.environ["PATH"] = "/nonexistent"
+    try:
+        crippled = _keys(SessionCleanerApp(CodexBackend(codex_home)))
+    finally:
+        os.environ["PATH"] = saved
+    check(
+        not any(k in crippled for k in ("a", "u", "d", "D", "O", "!")) and "c" in crippled,
+        f"没有 codex 命令时不解释改不了的操作：{sorted(crippled)}",
+    )
+
+    async with codex.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        await pilot.pause(0.4)
+        await pilot.press("h")
+        await pilot.pause(0.3)
+        check(isinstance(codex.screen, app_module.HelpScreen), "h 弹出按键说明")
+        title = str(codex.screen.query_one("#help-title").visual).strip()
+        check(title == "按键说明", f"弹窗标题没有工具名前缀：{title}")
+        shown = " ".join(str(w.visual) for w in codex.screen.query(".help-keys"))
+        check("拷贝恢复命令" in shown, "说明里写的是拷贝恢复命令")
+        check("空会话" not in shown, f"Codex 的弹窗里不提 Claude 的空会话：{shown[:40]}")
+        await pilot.press("escape")
+        await pilot.pause(0.3)
+        check(not isinstance(codex.screen, app_module.HelpScreen), "Esc 关掉说明")
 
 
 async def test_picker_feedback() -> None:
@@ -1205,7 +1640,7 @@ async def test_picker_feedback() -> None:
             await pilot.pause(0.2)
             hint = str(picker.query_one("#picker-hint").visual)
             check(
-                picker.is_running and "还没有会话记录" in hint,
+                picker.is_running and "暂无会话记录" in hint,
                 f"按下没有记录的 agent 会说明原因：{hint.strip()}",
             )
             await pilot.press("q")
@@ -1283,6 +1718,7 @@ def main() -> int:
         asyncio.run(test_wording_and_missing_deps(codex_fixture, claude_fixture))
         asyncio.run(test_copy_resume(codex_fixture, claude_fixture))
         asyncio.run(test_search(codex_fixture))
+        asyncio.run(test_orphans(codex_fixture))
         asyncio.run(test_picker(codex_fixture, claude_fixture))
 
         codex_home = make_codex_home()
@@ -1300,6 +1736,7 @@ def main() -> int:
         test_day_labels()
         asyncio.run(test_ui_regressions(regression_home))
         asyncio.run(test_footer_fits(codex_fixture, regression_home))
+        asyncio.run(test_help(codex_fixture, regression_home))
         asyncio.run(test_picker_feedback())
         test_clipboard_helper()
         test_packaging()

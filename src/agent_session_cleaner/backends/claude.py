@@ -7,19 +7,19 @@ Layout under ``$CLAUDE_CONFIG_DIR`` (default ``~/.claude``)::
         subagents/agent-*.jsonl                            sub-agent transcripts
         tool-results/                                      offloaded tool output
 
-Two things differ sharply from Codex:
+Two details differ substantially from Codex:
 
-* There is no local archive concept and no CLI to delegate to — `claude` only
-  offers `project purge`, which wipes a whole project. So mutations here are
-  plain filesystem operations and `supports_archive` is False.
+* Claude Code has no local archive operation to delegate to: ``claude project
+  purge`` removes an entire project. Session deletion is therefore a direct
+  filesystem operation, and ``supports_archive`` is ``False``.
 * The filename is only a UUID, so the start time has to come from the first
   record's timestamp rather than the name.
 
-The delete path follows cc-switch's `session_manager/providers/claude.rs`:
+Deletion follows cc-switch's ``session_manager/providers/claude.rs``:
 verify the session id recorded inside the file, remove the same-stem sidecar,
-then remove the transcript. Like cc-switch, it deliberately does not touch the
-top-level `file-history/<id>`, `session-env/<id>`, `image-cache/<id>`,
-`tasks/<id>` directories or `history.jsonl`.
+then remove the transcript. Like cc-switch, it deliberately leaves the
+top-level ``file-history/<id>``, ``session-env/<id>``, ``image-cache/<id>``,
+``tasks/<id>`` directories and ``history.jsonl`` untouched.
 """
 
 from __future__ import annotations
@@ -84,10 +84,11 @@ def _block_text(content: object) -> tuple[str, int]:
 
 
 def _is_real_exchange(record: dict) -> bool:
-    """True for something a human would recognise as part of the conversation.
+    """Return whether a record belongs to the visible conversation.
 
-    Most `user` records are not the user talking: in the largest transcript on
-    this machine, 213 of 224 were tool results and 3 were injected meta.
+    Most ``user`` records are tool traffic rather than user messages. In the
+    largest transcript inspected, 213 of 224 were tool results and another 3
+    were injected metadata.
     """
     if record.get("type") not in ("user", "assistant"):
         return False
@@ -110,15 +111,11 @@ def _parse(path: Path) -> dict:
     try:
         with path.open(encoding="utf-8", errors="replace") as fh:
             for lineno, line in enumerate(fh):
-                # Three reasons to look at a line:
-                #   · it may be an `ai-title`, which can be rewritten at any
-                #     point in the session, so those are watched for throughout;
-                #   · it is part of the preamble, where the metadata settles;
-                #   · we have not seen the user speak yet. That last one decides
-                #     whether this counts as an empty session, and empty sessions
-                #     are exactly what the bulk-clear key deletes — so it is
-                #     worth reading to the end of the file rather than declaring
-                #     a real conversation empty because its preamble ran long.
+                # Inspect a line when it may contain a late ``ai-title``, belongs
+                # to the metadata preamble, or could be the first user message.
+                # That last condition may require scanning the whole file: the
+                # bulk-delete key must not mistake a long preamble for an empty
+                # session.
                 wants_title = '"ai-title"' in line
                 wants_head = lineno < HEAD_SCAN_LINES
                 wants_user = info["first_user"] is None and '"user"' in line
@@ -177,7 +174,7 @@ def load_session(path: Path) -> Session | None:
         backend="claude",
         path=path,
         session_id=session_id,
-        title=condense(title) if title else "(无消息)",
+        title=condense(title) if title else "(空会话)",
         client=info["client"] or "cli",
         updated_at=datetime.fromtimestamp(stat.st_mtime),
         size=stat.st_size,
@@ -217,13 +214,13 @@ def _recorded_session_id(path: Path) -> str | None:
 def _delete_on_disk(session: Session) -> OpResult:
     path = session.path
     if not path.exists():
-        return OpResult(False, "这个会话的文件已经不在了，刷新一下试试")
+        return OpResult(False, "会话文件已不存在，请按 r 刷新列表")
 
     # Guard against deleting the wrong transcript, as cc-switch does: the id we
     # are about to act on must match the one recorded inside the file.
     recorded = _recorded_session_id(path)
     if recorded is not None and recorded != session.session_id:
-        return OpResult(False, "文件内容和列表对不上，为安全起见没有删除，请按 r 刷新")
+        return OpResult(False, "文件内的会话 ID 与列表不一致；已取消删除，请按 r 刷新列表")
 
     sidecar = sidecar_of(path)
     try:
@@ -232,12 +229,12 @@ def _delete_on_disk(session: Session) -> OpResult:
         elif sidecar.exists():
             sidecar.unlink()
     except OSError as error:
-        return OpResult(False, f"删除关联文件失败：{error}")
+        return OpResult(False, f"无法删除附属目录：{error}")
 
     try:
         path.unlink()
     except OSError as error:
-        return OpResult(False, f"删除失败：{error}")
+        return OpResult(False, f"无法删除会话：{error}")
     return OpResult(True, "")
 
 
@@ -248,10 +245,10 @@ class ClaudeBackend:
     shortcut = "c"
     supports_archive = False
     default_client = "cli"
-    #: Nothing is hidden here — empty sessions are listed like any other,
-    #: and swept up with the dedicated key instead.
-    noise_label = None
     empty_label = "空会话"
+    #: Sub-agent transcripts live inside the parent's sidecar directory, which
+    #: is removed along with the parent, so a stranded one cannot arise.
+    orphan_label = None
     #: Everything here is plain file work, so the CLI needn't be installed.
     requires_cli = None
 
@@ -311,10 +308,10 @@ class ClaudeBackend:
         return messages
 
     async def archive(self, session: Session) -> OpResult:
-        return OpResult(False, "Claude Code 不支持归档")
+        return OpResult(False, "Claude Code 不支持归档会话")
 
     async def unarchive(self, session: Session) -> OpResult:
-        return OpResult(False, "Claude Code 不支持归档")
+        return OpResult(False, "Claude Code 不支持归档会话")
 
     async def delete(self, session: Session) -> OpResult:
         return await asyncio.to_thread(_delete_on_disk, session)

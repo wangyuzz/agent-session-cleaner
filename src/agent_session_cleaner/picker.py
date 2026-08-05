@@ -1,4 +1,4 @@
-"""Shown when the command is run without naming an agent."""
+"""Agent chooser shown when no backend is named on the command line."""
 
 from __future__ import annotations
 
@@ -39,14 +39,14 @@ class AgentRow(ListItem):
         text.append(set_cell_size(self.backend.label, LABEL_WIDTH), style="bold")
 
         if not self.usable:
-            text.append("还没有使用记录", style="dim")
+            text.append("暂无会话记录", style="dim")
             return text
         if count is None:
-            text.append("读取中…", style="dim")
+            text.append("正在读取…", style="dim")
             return text
         text.append(f"{count} 个会话", style="")
         if self.backend.missing_cli():
-            text.append("   没有安装，只能查看", style="dim")
+            text.append("   未安装命令行工具，只能浏览", style="dim")
         return text
 
 
@@ -69,7 +69,7 @@ class AgentPicker(App[str | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="picker-box"):
-            yield Static("要清理哪个？", id="picker-title")
+            yield Static("选择会话来源", id="picker-title")
             yield ListView(
                 *(AgentRow(cls(self._homes.get(key))) for key, cls in BACKEND_CLASSES.items()),
                 id="picker-list",
@@ -80,9 +80,9 @@ class AgentPicker(App[str | None]):
     def on_mount(self) -> None:
         rows = list(self.query(AgentRow))
         if any(row.usable for row in rows):
-            self._hint("↑↓ 选择 · Enter 打开 · 或直接按左边的字母")
+            self._hint("↑↓ 选择 · Enter 打开 · 或按左侧字母")
         else:
-            self._hint("没有找到任何会话记录，按 q 退出")
+            self._hint("没有找到会话记录，按 q 退出")
         self.query_one("#picker-list", ListView).focus()
         self._count_sessions()
 
@@ -111,8 +111,8 @@ class AgentPicker(App[str | None]):
         if row.usable:
             self.exit(row.backend.id)
             return
-        # Silence would read as a broken key; say why nothing happened.
-        self._hint(f"{row.backend.label} 在这台机器上还没有会话记录，没什么可清理的")
+        # Explain why the shortcut did nothing instead of leaving it ambiguous.
+        self._hint(f"{row.backend.label} 暂无会话记录")
 
     def action_choose(self) -> None:
         item = self.query_one("#picker-list", ListView).highlighted_child

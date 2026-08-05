@@ -11,7 +11,7 @@ Screen {
     text-overflow: ellipsis;
 }
 
-/* Danger mode removes a confirmation step, so it has to be impossible to miss. */
+/* Danger mode skips confirmation, so its state must remain impossible to miss. */
 #banner.-danger {
     background: $error;
     color: $text;
@@ -41,14 +41,14 @@ SessionRow {
     background: transparent;
 }
 
-/* Titles are arbitrarily long; keep every row to exactly one line. */
+/* Session titles are unbounded; keep each row to exactly one line. */
 SessionRow > Static {
     height: 1;
     text-wrap: nowrap;
     text-overflow: ellipsis;
 }
 
-/* $boost is a ~4% white overlay: enough to group rows, not enough to notice. */
+/* $boost is a roughly 4% white overlay: enough to separate rows without striping. */
 SessionRow.-odd {
     background: $boost;
 }
@@ -56,6 +56,14 @@ SessionRow.-odd {
 /* Archived rows render without per-span colour so this greys the whole line. */
 SessionRow.-archived > Static {
     color: $text-disabled;
+}
+
+/* Archived sessions were set aside deliberately; orphaned sub-agents were left
+   behind accidentally. Tint orphans instead of fading them. This rule follows
+   the archived rule so an orphan remains conspicuous if both states occur. */
+SessionRow.-orphan > Static {
+    color: $text-warning;
+    text-style: italic;
 }
 
 #sessions > SessionRow.-highlight {
@@ -77,6 +85,8 @@ SessionRow.-archived > Static {
     padding: 0 1 1 1;
     border-bottom: solid $panel;
     margin-bottom: 1;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
 }
 
 .msg {
@@ -142,6 +152,63 @@ SessionRow.-archived > Static {
     background: $panel;
 }
 
+/* ---------------------------------------------------------------- footer -- */
+
+/* A Footer docks itself to the bottom. Dock the container instead so its two
+   FooterRow children stack in source order rather than overlap. */
+#footer-rows {
+    dock: bottom;
+    height: 2;
+    background: $footer-background;
+}
+
+FooterRow {
+    dock: none;
+    height: 1;
+}
+
+/* ----------------------------------------------------------------- help -- */
+
+HelpScreen {
+    align: center middle;
+    background: $background 60%;
+}
+
+#help-box {
+    width: 72;
+    max-width: 100%;
+    height: auto;
+    max-height: 90%;
+    padding: 1 2;
+    background: $panel;
+    border: thick $primary;
+}
+
+#help-title {
+    text-style: bold;
+    color: $primary;
+    margin-bottom: 1;
+}
+
+#help-body {
+    height: auto;
+    max-height: 100%;
+    scrollbar-size-vertical: 1;
+}
+
+.help-section {
+    color: $text-muted;
+    text-style: bold;
+}
+
+.help-keys {
+    margin-bottom: 1;
+}
+
+#help-footer {
+    color: $text-muted;
+}
+
 /* --------------------------------------------------------------- confirm -- */
 
 ConfirmScreen {
@@ -180,9 +247,9 @@ ConfirmScreen {
     align-horizontal: right;
 }
 
-/* Textual's default focus style is `bold reverse`, which inverts the label into
-   a white block that reads as a rendering artifact. Instead: outlined = a choice
-   you can make, filled = the one Enter will take. Cancel is focused on open. */
+/* Textual's default `bold reverse` focus turns a label into a distracting white
+   block. Here, an outline means available and a fill means Enter will choose
+   it. Cancel receives focus when the dialog opens. */
 #confirm-actions Button {
     margin-left: 2;
     min-width: 14;

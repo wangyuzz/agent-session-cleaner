@@ -1,12 +1,10 @@
 # agent-session-cleaner
 
-在终端中浏览和清理 Codex、Claude Code 的历史会话。
+在终端里浏览和清理 Codex、Claude Code 历史会话。
 
 ![界面预览](./example.png)
 
 ## 安装
-
-下载对应平台的可执行文件，加上执行权限就能用，不需要装 Python。
 
 macOS · Apple 芯片：
 
@@ -40,9 +38,11 @@ curl -L -o agent-session-cleaner \
 chmod +x agent-session-cleaner
 ```
 
-所有版本都在 [Releases](https://github.com/haowang02/agent-session-cleaner/releases) 页面。macOS 上如果是用浏览器下载的，第一次会被系统拦住，执行一次 `xattr -d com.apple.quarantine agent-session-cleaner` 再运行就好。Linux 版在 glibc 2.31（Ubuntu 20.04、Debian 11）及以上验证过。
 
-也可以从源码装，需要先安装 [uv](https://github.com/astral-sh/uv)：
+> [!WARNING]
+> 如果 macOS 拦截了浏览器下载的文件，先执行 `xattr -d com.apple.quarantine agent-session-cleaner`，再重新运行。
+
+也可以从源码安装。请先安装 [uv](https://github.com/astral-sh/uv)：
 
 ```bash
 git clone https://github.com/haowang02/agent-session-cleaner
@@ -56,79 +56,75 @@ uv tool install .
 agent-session-cleaner
 ```
 
-启动后选择 Codex 或 Claude Code，也可以直接指定：
+启动后选择 Codex 或 Claude Code；也可以在命令中直接指定：
 
 ```bash
 agent-session-cleaner codex
 agent-session-cleaner claude
 ```
 
-## 快捷键
-
-可用快捷键会显示在界面底部。
-
-| 键 | 作用 |
-|---|---|
-| `↑` `↓` / `j` `k` | 上下移动 |
-| `g` / `G` | 跳到开头 / 末尾 |
-| `Tab` | 切换列表与会话详情 |
-| `/` | 搜索 |
-| `n` / `N` | 下一个 / 上一个搜索结果 |
-| `c` | 复制恢复会话的命令 |
-| `d` | 删除当前会话 |
-| `r` | 刷新会话列表 |
-| `!` | 开启或关闭危险模式 |
-| `Esc` | 关闭危险模式或清除搜索 |
-| `q` | 退出 |
-
-Codex 还支持：
-
-| 键 | 作用 |
-|---|---|
-| `a` | 归档当前会话 |
-| `u` | 取消归档 |
-| `v` | 显示或隐藏已归档会话 |
-| `s` | 显示或隐藏子代理、自动化会话 |
-| `D` | 删除全部已归档会话 |
-
-Claude Code 还支持：
-
-| 键 | 作用 |
-|---|---|
-| `E` | 删除全部空会话 |
-
-`a`、`c`、`d`、`u` 始终作用于左侧选中的会话。
-
-## 恢复会话
-
-按 `c` 会复制一条恢复命令。它会先进入会话原来的工作目录，再恢复对话：
-
-```bash
-cd /path/to/project && codex resume <session-id>
-cd /path/to/project && claude --resume <session-id>
-```
-
-## 删除与归档
-
-删除操作无法恢复，也不会自动备份。Codex 会话如需保留，建议先归档。
-
-- Codex 的归档和删除由 Codex 命令行工具执行。
-- Claude Code 会删除会话记录及其同名附属目录，不会清理其他缓存。
-- ⚠️ 危险模式下，按 `d` 会直接删除。
-
-Claude Code 不支持归档。Codex 默认隐藏子代理和自动化会话，可按 `s` 显示；Claude Code 会显示全部会话，可按 `E` 清理空会话。
-
-## 数据目录
-
-默认读取 `~/.codex` 和 `~/.claude`。如需指定其他目录：
+默认读取 `~/.codex` 和 `~/.claude`。如需使用其他目录：
 
 ```bash
 agent-session-cleaner --codex-home /path/to/codex
 agent-session-cleaner --claude-home /path/to/claude
 ```
 
-只有一侧存在会话记录也可以正常使用。未安装 Codex 命令行工具时仍可浏览 Codex 会话，但不能归档或删除；浏览和删除 Claude Code 会话不依赖 Claude Code 命令行工具。
+## 快捷键
+
+界面底部会列出当前可用的快捷键。按 `h` 可查看完整说明。
+
+| 键 | 作用 |
+|---|---|
+| `↑` `↓` / `j` `k` | 上下选择会话 |
+| `g` / `G` | 跳到列表顶部 / 底部 |
+| `Tab` | 在会话列表和对话详情之间切换 |
+| `/` | 搜索标题、目录和会话 ID |
+| `?` | 反向搜索 |
+| `n` / `N` | 下一个 / 上一个匹配项 |
+| `c` | 拷贝恢复命令 |
+| `d` | 删除选中的会话 |
+| `r` | 重新读取会话列表 |
+| `h` | 按键说明 |
+| `!` | 切换危险模式 |
+| `Esc` | 关闭危险模式，或清除搜索 |
+| `q` | 退出 |
+
+Codex 还支持：
+
+| 键 | 作用 |
+|---|---|
+| `a` | 归档选中的会话 |
+| `u` | 取消归档选中的会话 |
+| `D` | 删除所有已归档会话 |
+| `O` | 删除所有孤立的子代理会话 |
+
+Claude Code 还支持：
+
+| 键 | 作用 |
+|---|---|
+| `E` | 删除所有空会话 |
+
+对于 Codex，归档或删除一条会话时，它派生的子代理会话也会一并处理。
+
+## 恢复会话
+
+按 `c` 会将恢复命令拷贝到剪贴板。命令包含 cd 和 resume 两部分：
+
+```bash
+cd /path/to/project && codex resume <session-id>
+cd /path/to/project && claude --resume <session-id>
+```
+
+## 删除与归档原理
+
+> [!WARNING]
+> 本工具不会备份数据，删除后无法恢复！
+
+- Codex 的归档和删除由 Codex 命令行工具执行，没有安装 Codex CLI 则无法正常使用。
+- Claude Code 会删除会话记录及其同名附属目录，但不会清理其他缓存。
+- ⚠️ 危险模式下，按 `d` 会跳过确认并直接删除。
 
 ## 致谢
 
-- [LINUX DO](https://linux.do/) - 新的理想型社区
+- [LINUX DO](https://linux.do/)——新的理想型社区
