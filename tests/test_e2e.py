@@ -67,6 +67,15 @@ async def _settle(pilot, app: SessionCleanerApp) -> None:
     await pilot.pause(0.3)
 
 
+async def _wait_for_screen(pilot, app: SessionCleanerApp, screen_type: type) -> bool:
+    """Wait for a worker-driven modal to reach the screen stack."""
+    for _ in range(20):
+        if isinstance(app.screen, screen_type):
+            return True
+        await pilot.pause(0.1)
+    return False
+
+
 # ============================================================ [1] 数据层 codex
 
 
@@ -770,8 +779,10 @@ async def test_orphans(codex_home: Path) -> None:
                 check(expected in header, f"详情里说明上级去向：{title} → {expected}")
 
         await pilot.press("O")
-        await pilot.pause()
-        check(isinstance(app.screen, ConfirmScreen), "O 弹出确认框")
+        shown = await _wait_for_screen(pilot, app, ConfirmScreen)
+        check(shown, "O 弹出确认框")
+        if not shown:
+            return
         headline = str(app.screen._subject).splitlines()[0]
         check("共 2 个孤立的子代理会话" in headline, f"确认框只点名孤立的：{headline}")
         check("来源会话已被删除" in app.screen._body, f"说明为什么可以删：{app.screen._body}")
