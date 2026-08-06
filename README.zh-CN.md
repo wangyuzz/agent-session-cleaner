@@ -1,9 +1,9 @@
 <div align="center">
   <h1>agent-session-cleaner</h1>
-  <p><strong>一个终端，统一管理 Codex、Claude Code 与 OpenCode 的全部会话：查找、恢复、清理，都更轻松。</strong></p>
+  <p><strong>在一个终端中浏览、恢复和清理 Codex、Claude Code 与 OpenCode 的全部会话。</strong></p>
   <p>
     <a href="https://github.com/haowang02/agent-session-cleaner/releases/latest"><img src="https://img.shields.io/github/v/release/haowang02/agent-session-cleaner?label=release" alt="最新版本"></a>
-    <a href="https://github.com/haowang02/agent-session-cleaner/actions/workflows/release.yml"><img src="https://github.com/haowang02/agent-session-cleaner/actions/workflows/release.yml/badge.svg" alt="构建状态"></a>
+    <a href="https://github.com/haowang02/agent-session-cleaner/actions/workflows/ci.yml"><img src="https://github.com/haowang02/agent-session-cleaner/actions/workflows/ci.yml/badge.svg" alt="CI 状态"></a>
     <img src="https://img.shields.io/badge/platforms-macOS%20%7C%20Linux-blue" alt="支持 macOS 和 Linux">
     <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT 许可证"></a>
   </p>
@@ -14,47 +14,43 @@
 
 ## 安装
 
+每个版本都提供一个 `.tar.gz` 压缩包，其中只有一个独立的可执行文件。解压到当前目录即可运行，无需安装运行时依赖。
+
 macOS · Apple 芯片：
 
 ```bash
-curl -L -o agent-session-cleaner \
-  https://github.com/haowang02/agent-session-cleaner/releases/latest/download/agent-session-cleaner-macos-arm64
-chmod +x agent-session-cleaner
+curl -fsSL https://github.com/haowang02/agent-session-cleaner/releases/latest/download/agent-session-cleaner-macos-arm64.tar.gz \
+  | tar -xzf -
 ```
 
 macOS · Intel：
 
 ```bash
-curl -L -o agent-session-cleaner \
-  https://github.com/haowang02/agent-session-cleaner/releases/latest/download/agent-session-cleaner-macos-x86_64
-chmod +x agent-session-cleaner
+curl -fsSL https://github.com/haowang02/agent-session-cleaner/releases/latest/download/agent-session-cleaner-macos-x86_64.tar.gz \
+  | tar -xzf -
 ```
 
 Linux · x86_64：
 
 ```bash
-curl -L -o agent-session-cleaner \
-  https://github.com/haowang02/agent-session-cleaner/releases/latest/download/agent-session-cleaner-linux-x86_64
-chmod +x agent-session-cleaner
+curl -fsSL https://github.com/haowang02/agent-session-cleaner/releases/latest/download/agent-session-cleaner-linux-x86_64.tar.gz \
+  | tar -xzf -
 ```
 
 Linux · arm64：
 
 ```bash
-curl -L -o agent-session-cleaner \
-  https://github.com/haowang02/agent-session-cleaner/releases/latest/download/agent-session-cleaner-linux-arm64
-chmod +x agent-session-cleaner
+curl -fsSL https://github.com/haowang02/agent-session-cleaner/releases/latest/download/agent-session-cleaner-linux-arm64.tar.gz \
+  | tar -xzf -
 ```
 
 > [!WARNING]
 > 如果 macOS 拦截了浏览器下载的文件，先执行 `xattr -d com.apple.quarantine agent-session-cleaner`，再重新运行。
 
-也可以从源码安装。请先安装 [uv](https://github.com/astral-sh/uv)：
+也可以从源码安装。请先安装 [Go](https://go.dev/dl/) 1.25 或更高版本：
 
 ```bash
-git clone https://github.com/haowang02/agent-session-cleaner
-cd agent-session-cleaner
-uv tool install .
+go install github.com/haowang02/agent-session-cleaner/cmd/agent-session-cleaner@latest
 ```
 
 ## 使用
@@ -63,7 +59,7 @@ uv tool install .
 agent-session-cleaner
 ```
 
-启动后选择要管理的 Agent；也可以在命令中直接指定：
+不带参数运行时，可在启动界面选择 Agent；也可以在命令中直接指定：
 
 ```bash
 agent-session-cleaner codex
@@ -71,7 +67,7 @@ agent-session-cleaner claude
 agent-session-cleaner opencode
 ```
 
-默认读取 `~/.codex`、`~/.claude` 和 `~/.local/share/opencode`（即 `$XDG_DATA_HOME/opencode`）。如需使用其他目录：
+默认情况下，Codex 使用 `$CODEX_HOME` 或 `~/.codex`，Claude Code 使用 `$CLAUDE_CONFIG_DIR` 或 `~/.claude`，OpenCode 使用 `$XDG_DATA_HOME/opencode` 或 `~/.local/share/opencode`。如需明确指定其他目录：
 
 ```bash
 agent-session-cleaner --codex-home /path/to/codex
@@ -79,7 +75,9 @@ agent-session-cleaner --claude-home /path/to/claude
 agent-session-cleaner --opencode-home /path/to/opencode
 ```
 
-OpenCode 路径必须指向包含 `opencode.db` 的目录，且目录名必须为 `opencode`。
+OpenCode 路径必须指向名为 `opencode` 的数据目录本身，而不是它的上级目录；`opencode.db` 存在时会直接位于该目录中。
+
+会话列表和对话预览会直接读取已有数据。修改 Codex 会话和删除 OpenCode 会话需要相应的 CLI；CLI 不可用时，仍可进入该 Agent 的只读浏览模式。Claude Code 会直接修改其会话文件。
 
 ### 语言
 
@@ -92,15 +90,15 @@ AGENT_SESSION_CLEANER_LANG=zh-CN agent-session-cleaner
 
 ## 快捷键
 
-界面底部会列出当前可用的快捷键。按 `h` 可查看完整说明。
+界面底部会列出当前 Agent 和本机环境可用的快捷键。按 `h` 可查看完整的快捷键说明。
 
-| 键 | 作用 | 适用范围 |
+| 键 | 作用 | 支持范围 |
 |---|---|---|
 | `↑` `↓` / `j` `k` | 移到上一条 / 下一条会话 | 全部 Agent |
 | `g` / `G` | 跳到列表顶部 / 底部 | 全部 Agent |
 | `Tab` | 在会话列表和对话详情之间切换 | 全部 Agent |
 | `␣` | 选择或取消选择当前会话 | 全部 Agent |
-| `/` | 搜索标题、目录、会话 ID 和来源 | 全部 Agent |
+| `/` | 搜索标题、工作目录、会话 ID 和客户端 | 全部 Agent |
 | `?` | 反向搜索 | 全部 Agent |
 | `n` / `N` | 下一个 / 上一个匹配项 | 全部 Agent |
 | `c` | 复制当前会话的恢复命令 | 全部 Agent |
@@ -112,7 +110,7 @@ AGENT_SESSION_CLEANER_LANG=zh-CN agent-session-cleaner
 | `E` | 删除所有空会话 | 仅 Claude Code |
 | `r` | 刷新会话列表 | 全部 Agent |
 | `h` | 按键说明 | 全部 Agent |
-| `!` | 开启或关闭危险模式（仅影响单个会话删除） | 全部 Agent |
+| `!` | 开启或关闭危险模式；删除单个会话时跳过确认 | 全部 Agent |
 | `Esc` | 退出多选模式、关闭危险模式，或清除搜索 | 全部 Agent |
 | `q` | 退出 | 全部 Agent |
 
@@ -120,7 +118,7 @@ AGENT_SESSION_CLEANER_LANG=zh-CN agent-session-cleaner
 
 ## 恢复会话
 
-按 `c` 可复制一条直接恢复当前会话的命令。如果会话记录了工作目录，命令会先进入该目录，确保 Agent 在正确的项目上下文中恢复：
+按 `c` 可复制一条用于恢复当前会话的命令。如果会话记录了工作目录，命令会先进入该目录，确保 Agent 在正确的项目上下文中恢复。使用默认数据目录时，命令形式如下：
 
 ```bash
 cd /path/to/project && codex resume <session-id>
@@ -128,15 +126,17 @@ cd /path/to/project && claude --resume <session-id>
 cd /path/to/project && opencode -s <session-id>
 ```
 
+使用自定义数据目录时，复制的命令还会包含相应的 `CODEX_HOME`、`CLAUDE_CONFIG_DIR` 或 `XDG_DATA_HOME` 环境变量。
+
 ## 删除与归档
 
 > [!WARNING]
-> 本工具不会备份数据，删除后无法恢复！
+> 本工具不会创建备份，删除的会话无法恢复。
 
 - 删除或归档一条会话时，它派生的子代理会话也会一并处理。
-- Codex 会话通过 Codex CLI 修改。
-- Claude Code 会删除选中的会话及其相关数据。
-- OpenCode 会话通过 OpenCode CLI 删除。
+- Codex 的归档、取消归档和删除操作会交由 Codex CLI 执行。
+- Claude Code 会直接删除会话记录及其相关数据。
+- OpenCode 的删除操作会交由 OpenCode CLI 执行。
 - 危险模式（`!`）下，删除单个会话时会跳过确认；批量删除仍会要求确认。
 
 ## 致谢

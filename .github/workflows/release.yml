@@ -20,100 +20,118 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
-      # setup-uv stopped publishing floating major-version tags after v7.
-      - uses: astral-sh/setup-uv@v9.0.0
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
 
-      - name: Lint
-        run: uvx ruff check .
-
-      # Install the package so packaging metadata is covered, but do not create
-      # a uv.lock in the repository. Checks that need Codex skip themselves.
-      - name: Test
-        run: uv run --python 3.12 --no-project --with . tests/test_e2e.py
-
-      # Fail before the platform builds if the hand-written tag, package
-      # version, or release notes are missing or inconsistent.
-      - name: Verify tag, version, and changelog
-        if: github.ref_type == 'tag'
+      - name: Format
         run: |
-          set -euo pipefail
-          tag="${GITHUB_REF_NAME#v}"
-          version=$(python3 -c "import re, pathlib; \
-            text = pathlib.Path('src/agent_session_cleaner/__init__.py').read_text(); \
-            print(re.search(r'__version__ = \"([^\"]+)\"', text).group(1))")
-          if [ "$tag" != "$version" ]; then
-            echo "Tag $GITHUB_REF_NAME does not match package version $version" >&2
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "gofmt would change:" >&2
+            echo "$unformatted" >&2
             exit 1
           fi
-          python3 scripts/changelog.py "$version" > /dev/null
-          echo "Version $version and release notes are ready"
 
-  macos:
-    name: macOS ${{ matrix.arch }}
+      - name: Vet
+        run: go vet ./...
+
+      # Pinned by go.mod's tool directive, so CI and a laptop run the same one.
+      - name: Staticcheck
+        run: go tool staticcheck ./...
+
+      # The runner has no agent installed and no session directories, which is
+      # the environment the suite is written to pass in.
+      - name: Test
+        run: go test ./...
+
+      # Fail before the platform builds if the tag, the version the binary
+      # reports, or the release notes are missing or inconsistent.
+      - name: Verify tag, version, and changelog
+        if: github.ref_type == 'tag'
+        run: ./scripts/changelog.sh "$GITHUB_REF_NAME" > /dev/null
+
+  build:
+    name: Build
     needs: check
-    runs-on: ${{ matrix.runner }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: macos-15
-            arch: arm64
-          - runner: macos-15-intel
-            arch: x86_64
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
-      # setup-uv stopped publishing floating major-version tags after v7.
-      - uses: astral-sh/setup-uv@v9.0.0
-
-      # The build script launches the binary and exercises the list, detail
-      # pane, and q-to-quit path before accepting the artifact.
-      - name: Build
-        run: ./scripts/build.sh
-
-      - uses: actions/upload-artifact@v7
+      - uses: actions/setup-go@v6
         with:
-          name: agent-session-cleaner-macos-${{ matrix.arch }}
-          path: dist/agent-session-cleaner-macos-${{ matrix.arch }}
-          if-no-files-found: error
+          go-version-file: go.mod
+          cache: true
 
-  linux:
-    name: Linux ${{ matrix.arch }}
-    needs: check
-    runs-on: ${{ matrix.runner }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: ubuntu-24.04
-            platform: linux/amd64
-            arch: x86_64
-          - runner: ubuntu-24.04-arm
-            platform: linux/arm64
-            arch: arm64
-    steps:
-      - uses: actions/checkout@v7
-      - uses: docker/setup-buildx-action@v4
-
-      # Use the repository Dockerfile exactly as a local buildx run would. Both
-      # architectures build natively on matching runners, without emulation.
-      - name: Build
+      # Everything cross-compiles from one runner: the SQLite driver is pure
+      # Go, so CGO stays off and the binaries are static. That also removes the
+      # glibc floor a dynamically linked build would impose on Linux users.
+      #
+      # -trimpath drops the build machine's paths, -s -w drop the symbol table
+      # and DWARF: together about a third off a plain build. Everything past
+      # that costs something real — a packer such as UPX breaks macOS
+      # signing on arm64 and reliably trips antivirus — so the rest of the
+      # saving is left to the archive, which is where a download is measured
+      # anyway.
+      - name: Build every platform
+        env:
+          CGO_ENABLED: "0"
         run: |
-          docker buildx build \
-            --platform ${{ matrix.platform }} \
-            --target export \
-            --output type=local,dest=dist \
-            .
+          set -euo pipefail
+          mkdir -p dist stage
+          for target in darwin/arm64 darwin/amd64 linux/amd64 linux/arm64; do
+            os="${target%/*}"
+            arch="${target#*/}"
+            case "$os/$arch" in
+              darwin/amd64|linux/amd64) label="x86_64" ;;
+              *)                        label="$arch" ;;
+            esac
+            case "$os" in
+              darwin) platform="macos" ;;
+              *)      platform="$os" ;;
+            esac
+
+            name="agent-session-cleaner-$platform-$label"
+            mkdir -p "stage/$name"
+            GOOS="$os" GOARCH="$arch" go build \
+              -trimpath -ldflags "-s -w" \
+              -o "stage/$name/agent-session-cleaner" ./cmd/agent-session-cleaner
+
+            # The executable and nothing else, unpacking into the working
+            # directory rather than into a directory of its own: the whole
+            # install is one command and leaves one file behind. gzip -9
+            # because the extra pass is free next to a network round trip.
+            tar -C "stage/$name" -cf - agent-session-cleaner \
+              | gzip -9 > "dist/$name.tar.gz"
+          done
+          file stage/*/agent-session-cleaner
+          ls -lh dist
+
+      # Test what is actually published, unpacked the way a reader of the
+      # README would unpack it. A binary that cannot answer --version, or an
+      # archive that does not hold exactly one, is not worth releasing.
+      - name: Smoke-test the published archive
+        run: |
+          set -euo pipefail
+          mkdir -p check
+          tar -C check -xzf dist/agent-session-cleaner-linux-x86_64.tar.gz
+          if [ "$(ls -A check)" != "agent-session-cleaner" ]; then
+            echo "the archive holds more than the executable:" >&2
+            ls -A check >&2
+            exit 1
+          fi
+          ./check/agent-session-cleaner --version
 
       - uses: actions/upload-artifact@v7
         with:
-          name: agent-session-cleaner-linux-${{ matrix.arch }}
-          path: dist/agent-session-cleaner-linux-${{ matrix.arch }}
+          name: binaries
+          path: dist/agent-session-cleaner-*.tar.gz
           if-no-files-found: error
 
   release:
     name: Publish release
     if: github.ref_type == 'tag'
-    needs: [macos, linux]
+    needs: build
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -123,21 +141,20 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           path: dist
-          pattern: agent-session-cleaner-*
-          merge-multiple: true
+          name: binaries
 
       - name: Checksums
         run: |
           set -euo pipefail
           cd dist
-          sha256sum agent-session-cleaner-* > checksums.txt
+          sha256sum agent-session-cleaner-*.tar.gz > checksums.txt
           cat checksums.txt
 
       # Release notes come directly from this version's changelog entry.
       - name: Prepare release notes
         run: |
           set -euo pipefail
-          python3 scripts/changelog.py "$GITHUB_REF_NAME" > notes.md
+          ./scripts/changelog.sh "$GITHUB_REF_NAME" > notes.md
           cat notes.md
 
       - name: Create release

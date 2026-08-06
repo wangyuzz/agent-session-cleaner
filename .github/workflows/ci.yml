@@ -1,0 +1,47 @@
+name: CI
+
+# Every push and pull request, so a break is found before a tag is cut rather
+# than in the middle of a release.
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Format
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "gofmt would change:" >&2
+            echo "$unformatted" >&2
+            exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      # Pinned by go.mod's tool directive, so CI and a laptop run the same one.
+      - name: Staticcheck
+        run: go tool staticcheck ./...
+
+      # The runner has no agent installed and no session directories, which is
+      # exactly the environment the suite is written to pass in.
+      - name: Test
+        run: go test ./...

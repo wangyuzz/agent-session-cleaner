@@ -4,6 +4,42 @@ Each version section is used verbatim as its GitHub Release notes.
 
 每个版本的小节会原样用作 GitHub Release 说明。
 
+## 0.6.0
+
+### English
+
+- Rebuilt the application in Go with Bubble Tea, Bubbles, and Lip Gloss while preserving the
+  existing Codex, Claude Code, and OpenCode workflows. Releases are now self-contained binaries,
+  and the former Python, uv, Docker, and platform-specific build paths have been removed.
+- Moved session discovery, conversation loading, clipboard work, and session changes into
+  message-driven commands so filesystem and CLI operations never block the terminal event loop.
+- Strengthened destructive-operation safety with stale-list protection, strict session ID and
+  path validation, symlink refusal, ordered sub-agent cascades, bounded concurrency, retryable
+  OpenCode deletions, and consistent recovery after partial failures.
+- Improved terminal behavior across narrow windows, resizing, long and Unicode text, scrolling,
+  focus changes, search, multi-select, confirmation dialogs, and cached conversation previews.
+- Refined the English and Simplified Chinese interface, command-line help, errors, and README
+  documentation. Data-directory defaults and CLI requirements are now described consistently.
+- Added broad unit and interaction coverage, `go vet`, Staticcheck, and CI checks, with a unified
+  four-platform release workflow and checksummed archives.
+
+### 中文
+
+- 使用 Go、Bubble Tea、Bubbles 和 Lip Gloss 重写应用，同时保留 Codex、Claude Code 与
+  OpenCode 的现有工作流。发布产物改为独立可执行文件，并移除原有的 Python、uv、Docker
+  和按平台拆分的构建流程。
+- 将会话发现、对话加载、剪贴板处理和会话修改改为消息驱动命令，文件系统和 CLI 操作不再
+  阻塞终端事件循环。
+- 加强高风险操作的安全性：避免基于过期列表修改数据，严格校验会话 ID 与路径，拒绝符号
+  链接，按安全顺序处理子代理会话，限制并发，重试 OpenCode 临时冲突，并在部分失败后保持
+  状态一致且可继续操作。
+- 改进窄窗口、终端缩放、长文本与 Unicode、滚动、焦点切换、搜索、多选、确认框和对话缓存
+  等交互表现。
+- 统一打磨英文和简体中文界面、命令行帮助、错误提示与 README，准确说明数据目录默认值和
+  CLI 依赖。
+- 补充完整的单元测试与交互测试，引入 `go vet`、Staticcheck 和 CI 检查，并统一四个平台的
+  发布流程与校验和归档。
+
 ## 0.5.0
 
 ### English
