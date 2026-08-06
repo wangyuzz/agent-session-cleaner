@@ -14,65 +14,33 @@
 
 ## Install
 
-Each release includes a `.tar.gz` archive containing one self-contained executable. Extract it into the current directory and run it; no runtime dependencies are required.
-
-macOS · Apple silicon:
+Install or update on macOS and Linux:
 
 ```bash
-curl -fsSL https://github.com/haowang02/agent-session-cleaner/releases/latest/download/agent-session-cleaner-macos-arm64.tar.gz \
-  | tar -xzf -
-```
-
-macOS · Intel:
-
-```bash
-curl -fsSL https://github.com/haowang02/agent-session-cleaner/releases/latest/download/agent-session-cleaner-macos-x86_64.tar.gz \
-  | tar -xzf -
-```
-
-Linux · x86_64:
-
-```bash
-curl -fsSL https://github.com/haowang02/agent-session-cleaner/releases/latest/download/agent-session-cleaner-linux-x86_64.tar.gz \
-  | tar -xzf -
-```
-
-Linux · arm64:
-
-```bash
-curl -fsSL https://github.com/haowang02/agent-session-cleaner/releases/latest/download/agent-session-cleaner-linux-arm64.tar.gz \
-  | tar -xzf -
-```
-
-> [!WARNING]
-> If macOS blocks a binary downloaded through your browser, run `xattr -d com.apple.quarantine agent-session-cleaner`, then try again.
-
-You can also install from source. Install [Go](https://go.dev/dl/) 1.25 or newer first:
-
-```bash
-go install github.com/haowang02/agent-session-cleaner/cmd/agent-session-cleaner@latest
+curl -LsSf https://raw.githubusercontent.com/haowang02/agent-session-cleaner/main/install.sh | sh
 ```
 
 ## Usage
 
 ```bash
-agent-session-cleaner
+asc
+# The full command name agent-session-cleaner is also available.
 ```
 
 Run without arguments to choose an agent, or name one directly:
 
 ```bash
-agent-session-cleaner codex
-agent-session-cleaner claude
-agent-session-cleaner opencode
+asc codex
+asc claude
+asc opencode
 ```
 
 By default, the app uses `$CODEX_HOME` or `~/.codex` for Codex, `$CLAUDE_CONFIG_DIR` or `~/.claude` for Claude Code, and `$XDG_DATA_HOME/opencode` or `~/.local/share/opencode` for OpenCode. To override a location explicitly:
 
 ```bash
-agent-session-cleaner --codex-home /path/to/codex
-agent-session-cleaner --claude-home /path/to/claude
-agent-session-cleaner --opencode-home /path/to/opencode
+asc --codex-home /path/to/codex
+asc --claude-home /path/to/claude
+asc --opencode-home /path/to/opencode
 ```
 
 The OpenCode path must name the `opencode` data directory itself, not its parent. The `opencode.db` file, when present, lives directly inside it.
@@ -84,8 +52,8 @@ Session discovery and previews read the stored data directly. Codex changes and 
 The interface follows your locale (`LC_ALL`, `LC_MESSAGES`, `LANGUAGE`, or `LANG`). Chinese locales use Simplified Chinese; all other locales use English. To override detection:
 
 ```bash
-AGENT_SESSION_CLEANER_LANG=en agent-session-cleaner
-AGENT_SESSION_CLEANER_LANG=zh-CN agent-session-cleaner
+AGENT_SESSION_CLEANER_LANG=en asc
+AGENT_SESSION_CLEANER_LANG=zh-CN asc
 ```
 
 ## Keyboard shortcuts

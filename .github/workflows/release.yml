@@ -34,6 +34,9 @@ jobs:
             exit 1
           fi
 
+      - name: Installer syntax
+        run: sh -n install.sh
+
       - name: Vet
         run: go vet ./...
 

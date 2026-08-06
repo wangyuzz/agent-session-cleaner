@@ -14,65 +14,33 @@
 
 ## 安装
 
-每个版本都提供一个 `.tar.gz` 压缩包，其中只有一个独立的可执行文件。解压到当前目录即可运行，无需安装运行时依赖。
-
-macOS · Apple 芯片：
+在 macOS 和 Linux 上安装或更新：
 
 ```bash
-curl -fsSL https://github.com/haowang02/agent-session-cleaner/releases/latest/download/agent-session-cleaner-macos-arm64.tar.gz \
-  | tar -xzf -
-```
-
-macOS · Intel：
-
-```bash
-curl -fsSL https://github.com/haowang02/agent-session-cleaner/releases/latest/download/agent-session-cleaner-macos-x86_64.tar.gz \
-  | tar -xzf -
-```
-
-Linux · x86_64：
-
-```bash
-curl -fsSL https://github.com/haowang02/agent-session-cleaner/releases/latest/download/agent-session-cleaner-linux-x86_64.tar.gz \
-  | tar -xzf -
-```
-
-Linux · arm64：
-
-```bash
-curl -fsSL https://github.com/haowang02/agent-session-cleaner/releases/latest/download/agent-session-cleaner-linux-arm64.tar.gz \
-  | tar -xzf -
-```
-
-> [!WARNING]
-> 如果 macOS 拦截了浏览器下载的文件，先执行 `xattr -d com.apple.quarantine agent-session-cleaner`，再重新运行。
-
-也可以从源码安装。请先安装 [Go](https://go.dev/dl/) 1.25 或更高版本：
-
-```bash
-go install github.com/haowang02/agent-session-cleaner/cmd/agent-session-cleaner@latest
+curl -LsSf https://raw.githubusercontent.com/haowang02/agent-session-cleaner/main/install.sh | sh
 ```
 
 ## 使用
 
 ```bash
-agent-session-cleaner
+asc
+# 也可以使用完整命令名 agent-session-cleaner。
 ```
 
 不带参数运行时，可在启动界面选择 Agent；也可以在命令中直接指定：
 
 ```bash
-agent-session-cleaner codex
-agent-session-cleaner claude
-agent-session-cleaner opencode
+asc codex
+asc claude
+asc opencode
 ```
 
 默认情况下，Codex 使用 `$CODEX_HOME` 或 `~/.codex`，Claude Code 使用 `$CLAUDE_CONFIG_DIR` 或 `~/.claude`，OpenCode 使用 `$XDG_DATA_HOME/opencode` 或 `~/.local/share/opencode`。如需明确指定其他目录：
 
 ```bash
-agent-session-cleaner --codex-home /path/to/codex
-agent-session-cleaner --claude-home /path/to/claude
-agent-session-cleaner --opencode-home /path/to/opencode
+asc --codex-home /path/to/codex
+asc --claude-home /path/to/claude
+asc --opencode-home /path/to/opencode
 ```
 
 OpenCode 路径必须指向名为 `opencode` 的数据目录本身，而不是它的上级目录；`opencode.db` 存在时会直接位于该目录中。
@@ -84,8 +52,8 @@ OpenCode 路径必须指向名为 `opencode` 的数据目录本身，而不是�
 界面会跟随系统 locale（`LC_ALL`、`LC_MESSAGES`、`LANGUAGE` 或 `LANG`）：中文 locale 显示简体中文，其他语言显示英文。如需覆盖自动检测：
 
 ```bash
-AGENT_SESSION_CLEANER_LANG=en agent-session-cleaner
-AGENT_SESSION_CLEANER_LANG=zh-CN agent-session-cleaner
+AGENT_SESSION_CLEANER_LANG=en asc
+AGENT_SESSION_CLEANER_LANG=zh-CN asc
 ```
 
 ## 快捷键
