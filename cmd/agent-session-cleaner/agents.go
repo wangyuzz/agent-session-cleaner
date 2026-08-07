@@ -5,6 +5,7 @@ import (
 	"github.com/haowang02/agent-session-cleaner/internal/agent/claude"
 	"github.com/haowang02/agent-session-cleaner/internal/agent/codex"
 	"github.com/haowang02/agent-session-cleaner/internal/agent/opencode"
+	"github.com/haowang02/agent-session-cleaner/internal/agent/pi"
 	"github.com/haowang02/agent-session-cleaner/internal/i18n"
 )
 
@@ -30,6 +31,11 @@ var known = []struct {
 		id:       opencode.ID,
 		homeHelp: i18n.CLIOpenCodeHome,
 		build:    func(home string) agent.Agent { return opencode.New(home) },
+	},
+	{
+		id:       pi.ID,
+		homeHelp: i18n.CLIPiHome,
+		build:    func(home string) agent.Agent { return pi.New(home) },
 	},
 }
 

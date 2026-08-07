@@ -1,5 +1,4 @@
-// Package jsonl reads the newline-delimited JSON that two of the three agents
-// keep their transcripts in.
+// Package jsonl reads the newline-delimited JSON used by transcript-backed agents.
 //
 // It exists because bufio.Scanner cannot: a single transcript line is
 // routinely megabytes of base64 image or tool output, and the standard

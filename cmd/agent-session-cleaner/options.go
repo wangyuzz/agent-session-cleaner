@@ -97,7 +97,9 @@ func usage(out io.Writer, print *i18n.Printer) {
 	}
 	entries = append(entries, entry{"    --version", print.T(i18n.CLIVersion)})
 
-	width := 0
+	// text.Pad clips its input, so include the agent list in the shared column width.
+	agents := strings.Join(ids(), "|")
+	width := text.Width(agents)
 	for _, e := range entries {
 		width = max(width, text.Width(e.flag))
 	}
@@ -105,9 +107,9 @@ func usage(out io.Writer, print *i18n.Printer) {
 	fmt.Fprintln(out, print.T(i18n.CLIDescription))
 	fmt.Fprintln(out)
 	fmt.Fprintln(out, print.T(i18n.CLIUsage))
-	fmt.Fprintf(out, "  %s [%s] [options]\n\n", buildinfo.Name, strings.Join(ids(), "|"))
+	fmt.Fprintf(out, "  %s [%s] [options]\n\n", buildinfo.Name, agents)
 	fmt.Fprintln(out, print.T(i18n.CLIArguments))
-	fmt.Fprintf(out, "  %s  %s\n\n", text.Pad(strings.Join(ids(), "|"), width), print.T(i18n.CLIAgent))
+	fmt.Fprintf(out, "  %s  %s\n\n", text.Pad(agents, width), print.T(i18n.CLIAgent))
 	fmt.Fprintln(out, print.T(i18n.CLIOptions))
 	for _, e := range entries {
 		fmt.Fprintf(out, "  %s  %s\n", text.Pad(e.flag, width), e.what)

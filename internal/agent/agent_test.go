@@ -8,14 +8,16 @@ import (
 	"github.com/haowang02/agent-session-cleaner/internal/agent/claude"
 	"github.com/haowang02/agent-session-cleaner/internal/agent/codex"
 	"github.com/haowang02/agent-session-cleaner/internal/agent/opencode"
+	"github.com/haowang02/agent-session-cleaner/internal/agent/pi"
 )
 
-// every agent this program knows about, so a fourth cannot half-land.
+// every agent this program knows about, so the next one cannot half-land.
 func every() []agent.Agent {
 	return []agent.Agent{
 		codex.New("/tmp/codex"),
 		claude.New("/tmp/claude"),
 		opencode.New("/tmp/data/opencode"),
+		pi.New("/tmp/pi/agent"),
 	}
 }
 

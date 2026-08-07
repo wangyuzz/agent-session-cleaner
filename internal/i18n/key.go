@@ -214,6 +214,7 @@ const (
 	CLICodexHome
 	CLIClaudeHome
 	CLIOpenCodeHome
+	CLIPiHome
 	CLIVersion
 	CLIHomeUnavailable
 

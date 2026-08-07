@@ -1,6 +1,6 @@
 <div align="center">
   <h1>agent-session-cleaner</h1>
-  <p><strong>Browse, resume, and clean up all your Codex, Claude Code, and OpenCode sessions from one terminal.</strong></p>
+  <p><strong>Browse, resume, and clean up all your Codex, Claude Code, OpenCode, and Pi sessions from one terminal.</strong></p>
   <p>
     <a href="https://github.com/haowang02/agent-session-cleaner/releases/latest"><img src="https://img.shields.io/github/v/release/haowang02/agent-session-cleaner?label=release" alt="Latest release"></a>
     <a href="https://github.com/haowang02/agent-session-cleaner/actions/workflows/ci.yml"><img src="https://github.com/haowang02/agent-session-cleaner/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
@@ -33,19 +33,21 @@ Run without arguments to choose an agent, or name one directly:
 asc codex
 asc claude
 asc opencode
+asc pi
 ```
 
-By default, the app uses `$CODEX_HOME` or `~/.codex` for Codex, `$CLAUDE_CONFIG_DIR` or `~/.claude` for Claude Code, and `$XDG_DATA_HOME/opencode` or `~/.local/share/opencode` for OpenCode. To override a location explicitly:
+By default, the app uses `$CODEX_HOME` or `~/.codex` for Codex, `$CLAUDE_CONFIG_DIR` or `~/.claude` for Claude Code, `$XDG_DATA_HOME/opencode` or `~/.local/share/opencode` for OpenCode, and `$PI_CODING_AGENT_DIR` or `~/.pi/agent` for Pi. To override a location explicitly:
 
 ```bash
 asc --codex-home /path/to/codex
 asc --claude-home /path/to/claude
 asc --opencode-home /path/to/opencode
+asc --pi-home /path/to/pi/agent
 ```
 
 The OpenCode path must name the `opencode` data directory itself, not its parent. The `opencode.db` file, when present, lives directly inside it.
 
-Session discovery and previews read the stored data directly. Codex changes and OpenCode deletions require their respective CLIs; if a CLI is unavailable, that agent opens in browse-only mode. Claude Code deletions operate directly on its session files.
+Session discovery and previews read the stored data directly. Codex changes and OpenCode deletions require their respective CLIs; if a CLI is unavailable, that agent opens in browse-only mode. Claude Code and Pi deletions operate directly on their session files.
 
 ### Language
 
@@ -92,9 +94,10 @@ Press `c` to copy a ready-to-run command for the current session. If the session
 cd /path/to/project && codex resume <session-id>
 cd /path/to/project && claude --resume <session-id>
 cd /path/to/project && opencode -s <session-id>
+cd /path/to/project && pi --session <session-id>
 ```
 
-When a custom data directory is in use, the copied command also includes the corresponding `CODEX_HOME`, `CLAUDE_CONFIG_DIR`, or `XDG_DATA_HOME` assignment.
+When a custom data directory is in use, the copied command also includes the corresponding `CODEX_HOME`, `CLAUDE_CONFIG_DIR`, `XDG_DATA_HOME`, or `PI_CODING_AGENT_DIR` assignment.
 
 ## Deletion and archiving
 
@@ -105,6 +108,7 @@ When a custom data directory is in use, the copied command also includes the cor
 - Codex archive, unarchive, and delete operations are delegated to the Codex CLI.
 - Claude Code deletion removes the transcript and its related session data directly.
 - OpenCode deletion is delegated to the OpenCode CLI.
+- Pi deletion removes the session file directly; Pi has no archive and no non-interactive delete command.
 - In danger mode (`!`), individual deletions skip confirmation. Bulk deletion still asks for confirmation.
 
 ## Acknowledgements

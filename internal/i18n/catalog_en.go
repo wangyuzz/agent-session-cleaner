@@ -178,7 +178,7 @@ var english = map[Key]string{
 	OpenCodeHomeNotDataDir: "The {agent} data directory must be named “opencode”: {path}",
 	OpenCodeBadSessionID:   "Not a valid OpenCode session ID: {session_id}",
 
-	CLIDescription:        "Browse, resume, and clean up Codex, Claude Code, and OpenCode session history.",
+	CLIDescription:        "Browse, resume, and clean up Codex, Claude Code, OpenCode, and Pi session history.",
 	CLIUsage:              "Usage:",
 	CLIArguments:          "Arguments:",
 	CLIOptions:            "Options:",
@@ -193,6 +193,7 @@ var english = map[Key]string{
 	CLICodexHome:          "Codex session data directory (default: $CODEX_HOME or ~/.codex)",
 	CLIClaudeHome:         "Claude Code session data directory (default: $CLAUDE_CONFIG_DIR or ~/.claude)",
 	CLIOpenCodeHome:       "OpenCode session data directory; must be named opencode (default: $XDG_DATA_HOME/opencode or ~/.local/share/opencode)",
+	CLIPiHome:             "Pi agent data directory (default: $PI_CODING_AGENT_DIR or ~/.pi/agent)",
 	CLIVersion:            "show the version and exit",
 	CLIHomeUnavailable:    "{agent} session data directory is missing or is not a directory: {path}",
 }

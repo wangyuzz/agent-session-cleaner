@@ -248,6 +248,15 @@ func (a *Agent) Delete(ctx context.Context, s session.Session) error {
 	if err != nil {
 		return i18n.Wrap(err, i18n.SessionDeleteFailed, i18n.Args{"error": err})
 	}
+	opened, err := file.Stat()
+	if err != nil {
+		_ = file.Close()
+		return i18n.Wrap(err, i18n.SessionDeleteFailed, i18n.Args{"error": err})
+	}
+	if !os.SameFile(info, opened) {
+		_ = file.Close()
+		return i18n.Wrap(agent.ErrUnsafeSessionPath, i18n.SessionPathUnsafe)
+	}
 	// Guard against deleting the wrong transcript, as cc-switch does: the id
 	// about to be acted on must match the one recorded inside the file.
 	recorded := recordedID(file)

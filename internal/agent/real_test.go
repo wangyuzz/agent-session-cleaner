@@ -10,6 +10,7 @@ import (
 	"github.com/haowang02/agent-session-cleaner/internal/agent/claude"
 	"github.com/haowang02/agent-session-cleaner/internal/agent/codex"
 	"github.com/haowang02/agent-session-cleaner/internal/agent/opencode"
+	"github.com/haowang02/agent-session-cleaner/internal/agent/pi"
 	"github.com/haowang02/agent-session-cleaner/internal/session"
 )
 
@@ -20,7 +21,7 @@ import (
 func TestRealSessionTrees(t *testing.T) {
 	t.Parallel()
 
-	for _, target := range []agent.Agent{codex.New(""), claude.New(""), opencode.New("")} {
+	for _, target := range []agent.Agent{codex.New(""), claude.New(""), opencode.New(""), pi.New("")} {
 		meta := target.Meta()
 		t.Run(meta.ID, func(t *testing.T) {
 			t.Parallel()

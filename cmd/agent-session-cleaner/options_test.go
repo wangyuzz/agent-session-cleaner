@@ -40,8 +40,8 @@ func TestParse(t *testing.T) {
 		},
 		{
 			name:  "every home at once",
-			args:  []string{"--codex-home", "/a", "--claude-home", "/b", "--opencode-home", "/c"},
-			homes: map[string]string{"codex": "/a", "claude": "/b", "opencode": "/c"},
+			args:  []string{"--codex-home", "/a", "--claude-home", "/b", "--opencode-home", "/c", "--pi-home", "/d"},
+			homes: map[string]string{"codex": "/a", "claude": "/b", "opencode": "/c", "pi": "/d"},
 		},
 		{
 			name:  "a single dash is short form",
@@ -141,11 +141,23 @@ func TestUsageNamesEveryAgent(t *testing.T) {
 
 	for _, want := range []string{
 		buildinfo.Name, "Usage:", "Options:", "-h, --help", "--version",
-		"--codex-home", "--claude-home", "--opencode-home",
+		"--codex-home", "--claude-home", "--opencode-home", "--pi-home",
 	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("usage does not mention %q:\n%s", want, text)
 		}
+	}
+}
+
+func TestUsageDoesNotClipTheListOfAgents(t *testing.T) {
+	t.Parallel()
+
+	var out bytes.Buffer
+	usage(&out, i18n.New(i18n.English))
+	agents := strings.Join(ids(), "|")
+	if got := strings.Count(out.String(), agents); got != 2 {
+		t.Errorf("%q appears %d times, want it whole in both the usage line and the arguments:\n%s",
+			agents, got, out.String())
 	}
 }
 
@@ -162,7 +174,7 @@ func TestUsageIsTranslated(t *testing.T) {
 func TestRegistryIsComplete(t *testing.T) {
 	t.Parallel()
 
-	if got := strings.Join(ids(), ","); got != "codex,claude,opencode" {
+	if got := strings.Join(ids(), ","); got != "codex,claude,opencode,pi" {
 		t.Errorf("ids() = %s", got)
 	}
 	agents := buildAll(map[string]string{"codex": "/tmp/codex"})
