@@ -49,11 +49,15 @@ jobs:
       - name: Test
         run: go test ./...
 
-      # Fail before the platform builds if the tag, the version the binary
-      # reports, or the release notes are missing or inconsistent.
-      - name: Verify tag, version, and changelog
+      - name: Verify tag and version
         if: github.ref_type == 'tag'
-        run: ./scripts/changelog.sh "$GITHUB_REF_NAME" > /dev/null
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          built="$(sed -n 's/^const Version = "\(.*\)"$/\1/p' internal/buildinfo/buildinfo.go)"
+          if [ "$version" != "$built" ]; then
+            echo "tag version $version does not match the build's $built" >&2
+            exit 1
+          fi
 
   build:
     name: Build
@@ -140,6 +144,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - uses: actions/download-artifact@v8
         with:
@@ -153,11 +159,26 @@ jobs:
           sha256sum agent-session-cleaner-*.tar.gz > checksums.txt
           cat checksums.txt
 
-      # Release notes come directly from this version's changelog entry.
       - name: Prepare release notes
         run: |
           set -euo pipefail
-          ./scripts/changelog.sh "$GITHUB_REF_NAME" > notes.md
+
+          describe=(--tags --abbrev=0)
+          case "$GITHUB_REF_NAME" in
+            *-*) ;;
+            *) describe+=(--exclude='*-*') ;;
+          esac
+          previous="$(git describe "${describe[@]}" "${GITHUB_REF_NAME}^" 2>/dev/null || true)"
+          range="$GITHUB_REF_NAME"
+          if [ -n "$previous" ]; then
+            range="$previous..$GITHUB_REF_NAME"
+          fi
+
+          {
+            echo '### Changelog'
+            git log "$range" \
+              --format="- %s ([%h]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/%H))"
+          } > notes.md
           cat notes.md
 
       - name: Create release
