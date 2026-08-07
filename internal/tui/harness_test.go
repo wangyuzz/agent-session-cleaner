@@ -228,8 +228,10 @@ func titles(sessions []session.Session) string {
 // tree is a small family: a conversation with two sub-agents, one of which
 // spawned a third, plus an unrelated conversation.
 func tree() []session.Session {
+	// List labels are relative to the current date.
+	day := time.Now().AddDate(0, 0, -1)
 	when := func(hour int) time.Time {
-		return time.Date(2026, 8, 5, hour, 0, 0, 0, time.Local)
+		return time.Date(day.Year(), day.Month(), day.Day(), hour, 0, 0, 0, time.Local)
 	}
 	return []session.Session{
 		{ID: "root", Title: "root", Cwd: "/work/app", Client: "cli", CreatedAt: when(12)},

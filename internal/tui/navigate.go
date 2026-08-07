@@ -117,24 +117,32 @@ func (m *Model) pick() {
 
 func (m *Model) click(msg tea.MouseClickMsg) tea.Cmd {
 	mouse := msg.Mouse()
-	if mouse.Button != tea.MouseLeft || mouse.X >= m.listWidth() {
+	if mouse.Button != tea.MouseLeft {
 		return nil
 	}
+	previous := m.clicked
+	m.clicked = -1
 	if mouse.Y < bannerHeight || mouse.Y >= bannerHeight+m.bodyHeight() {
 		return nil
 	}
+	if mouse.X >= m.listWidth() {
+		// The divider belongs to neither pane, so it does not move focus.
+		if mouse.X > m.listWidth() && mouse.X < m.width && m.detailWidth() > 0 {
+			m.focus = focusDetail
+		}
+		return nil
+	}
+	m.focus = focusList
 	row := m.top + mouse.Y - bannerHeight
 	if row >= len(m.rows) {
 		return nil
 	}
 
-	if row == m.cursor && m.clicked == row {
-		m.clicked = -1
+	if row == m.cursor && previous == row {
 		m.pick()
 		return nil
 	}
 	m.clicked = row
-	m.focus = focusList
 	m.setCursor(row)
 	return m.showCurrent()
 }

@@ -111,6 +111,64 @@ func TestTabMovesFocusToTheConversation(t *testing.T) {
 	}
 }
 
+func TestClickingTheConversationMovesFocusToIt(t *testing.T) {
+	t.Parallel()
+
+	m := start(t, newFake(tree()...))
+
+	before := m.cursor
+	click(t, m, m.listWidth()+2, bannerHeight+1)
+	if m.focus != focusDetail {
+		t.Fatal("clicking the conversation did not move focus to it")
+	}
+	if m.cursor != before {
+		t.Errorf("the click moved the session cursor from %d to %d", before, m.cursor)
+	}
+
+	click(t, m, m.listWidth(), bannerHeight+1)
+	if m.focus != focusDetail {
+		t.Error("clicking the rule between the panes moved focus")
+	}
+
+	click(t, m, 1, bannerHeight+len(m.rows)+1)
+	if m.focus != focusList {
+		t.Error("clicking the list's empty space did not hand focus back to it")
+	}
+}
+
+func TestClickingAwayEndsADoubleClick(t *testing.T) {
+	t.Parallel()
+
+	for name, away := range map[string]func(*Model) (int, int){
+		"conversation": func(m *Model) (int, int) {
+			return m.listWidth() + 2, bannerHeight + 1
+		},
+		"divider": func(m *Model) (int, int) {
+			return m.listWidth(), bannerHeight + 1
+		},
+		"empty list space": func(m *Model) (int, int) {
+			return 1, bannerHeight + len(m.rows) + 1
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			m := start(t, newFake(tree()...))
+			click(t, m, 1, bannerHeight+1)
+			x, y := away(m)
+			click(t, m, x, y)
+			click(t, m, 1, bannerHeight+1)
+			if !m.picked.Empty() {
+				t.Error("returning to a row after a detour selected it")
+			}
+		})
+	}
+}
+
+func click(t *testing.T, m *Model, x, y int) {
+	t.Helper()
+	drive(t, m, send(t, m, tea.MouseClickMsg{Button: tea.MouseLeft, X: x, Y: y}))
+}
+
 // Tab changes what every key does, so which pane holds it cannot be a guess.
 // Two things say so at once: the rule between the panes, and how strongly the
 // row under the cursor is filled.
