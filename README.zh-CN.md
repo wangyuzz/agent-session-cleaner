@@ -54,8 +54,8 @@ OpenCode 路径必须指向名为 `opencode` 的数据目录本身，而不是�
 界面会跟随系统 locale（`LC_ALL`、`LC_MESSAGES`、`LANGUAGE` 或 `LANG`）：中文 locale 显示简体中文，其他语言显示英文。如需覆盖自动检测：
 
 ```bash
-AGENT_SESSION_CLEANER_LANG=en asc
-AGENT_SESSION_CLEANER_LANG=zh-CN asc
+ASC_LANG=en asc
+ASC_LANG=zh-CN asc
 ```
 
 ## 快捷键

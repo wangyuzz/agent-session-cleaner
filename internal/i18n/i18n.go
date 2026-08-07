@@ -119,7 +119,7 @@ func expand(template string, args Args) string {
 }
 
 // LanguageEnv is the variable that overrides locale detection.
-const LanguageEnv = "AGENT_SESSION_CLEANER_LANG"
+const LanguageEnv = "ASC_LANG"
 
 // Detect picks a language from the environment. Pass os.Getenv; a stub keeps
 // tests independent of the machine they run on.

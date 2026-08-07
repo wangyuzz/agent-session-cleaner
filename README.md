@@ -54,8 +54,8 @@ Session discovery and previews read the stored data directly. Codex changes and 
 The interface follows your locale (`LC_ALL`, `LC_MESSAGES`, `LANGUAGE`, or `LANG`). Chinese locales use Simplified Chinese; all other locales use English. To override detection:
 
 ```bash
-AGENT_SESSION_CLEANER_LANG=en asc
-AGENT_SESSION_CLEANER_LANG=zh-CN asc
+ASC_LANG=en asc
+ASC_LANG=zh-CN asc
 ```
 
 ## Keyboard shortcuts
