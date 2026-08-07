@@ -43,12 +43,73 @@ type meta struct {
 	ForkedFrom   string `json:"forked_from_id"`
 }
 
-// event is an event_msg payload, which is where human-facing text lives.
+// Since 0.147, paginated rollouts store messages inside item_completed events;
+// legacy rollouts keep the flattened user_message and agent_message events.
 type event struct {
 	Type        string            `json:"type"`
 	Message     string            `json:"message"`
 	Images      []json.RawMessage `json:"images"`
 	LocalImages []json.RawMessage `json:"local_images"`
+	Item        item              `json:"item"`
+}
+
+type item struct {
+	Type    string `json:"type"`
+	Content []part `json:"content"`
+}
+
+type part struct {
+	Type string `json:"type"`
+	Text string `json:"text"`
+}
+
+// Codex flattens both item schemas without separators; the two text variants
+// differ only because UserInput uses snake_case and AgentMessageContent does not.
+func (i item) message() (session.Message, bool) {
+	var role session.Role
+	switch i.Type {
+	case "UserMessage":
+		role = session.User
+	case "AgentMessage":
+		role = session.Assistant
+	default:
+		return session.Message{}, false
+	}
+	var text strings.Builder
+	images := 0
+	for _, piece := range i.Content {
+		switch piece.Type {
+		case "text", "Text":
+			text.WriteString(piece.Text)
+		case "image", "local_image":
+			images++
+		}
+	}
+	return session.NewMessage(role, text.String(), images)
+}
+
+func parseMessage(line []byte) (session.Message, bool) {
+	var envelope record
+	if json.Unmarshal(line, &envelope) != nil || envelope.Type != "event_msg" {
+		return session.Message{}, false
+	}
+	var payload event
+	if json.Unmarshal(envelope.Payload, &payload) != nil {
+		return session.Message{}, false
+	}
+	switch payload.Type {
+	case "user_message":
+		return session.NewMessage(
+			session.User,
+			payload.Message,
+			len(payload.Images)+len(payload.LocalImages),
+		)
+	case "agent_message":
+		return session.NewMessage(session.Assistant, payload.Message, 0)
+	case "item_completed":
+		return payload.Item.message()
+	}
+	return session.Message{}, false
 }
 
 // head reads a rollout's metadata and opening message in one pass. Both live
@@ -62,11 +123,12 @@ func head(r io.Reader) (info meta, opening string) {
 			info = parseMeta(line)
 			continue
 		}
-		if !bytes.Contains(line, []byte(`"user_message"`)) {
+		if !bytes.Contains(line, []byte(`"user_message"`)) &&
+			!bytes.Contains(line, []byte(`"UserMessage"`)) {
 			continue
 		}
-		if payload, ok := parseEvent(line, "user_message"); ok {
-			if text := strings.TrimSpace(payload.Message); text != "" {
+		if message, ok := parseMessage(line); ok && message.Role == session.User {
+			if text := strings.TrimSpace(message.Text); text != "" {
 				return info, text
 			}
 		}
@@ -86,23 +148,6 @@ func parseMeta(line []byte) meta {
 	return info
 }
 
-func parseEvent(line []byte, wanted ...string) (event, bool) {
-	var envelope record
-	if json.Unmarshal(line, &envelope) != nil || envelope.Type != "event_msg" {
-		return event{}, false
-	}
-	var payload event
-	if json.Unmarshal(envelope.Payload, &payload) != nil {
-		return event{}, false
-	}
-	for _, want := range wanted {
-		if payload.Type == want {
-			return payload, true
-		}
-	}
-	return event{}, false
-}
-
 // messages reads the human-facing turns of a rollout.
 //
 // The parallel response_item stream carries the same conversation with
@@ -113,19 +158,12 @@ func messages(ctx context.Context, r io.Reader) ([]session.Message, error) {
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		if !bytes.Contains(line, []byte(`"user_message"`)) &&
-			!bytes.Contains(line, []byte(`"agent_message"`)) {
+			!bytes.Contains(line, []byte(`"agent_message"`)) &&
+			!bytes.Contains(line, []byte(`"UserMessage"`)) &&
+			!bytes.Contains(line, []byte(`"AgentMessage"`)) {
 			continue
 		}
-		payload, ok := parseEvent(line, "user_message", "agent_message")
-		if !ok {
-			continue
-		}
-		role := session.Assistant
-		if payload.Type == "user_message" {
-			role = session.User
-		}
-		images := len(payload.Images) + len(payload.LocalImages)
-		if message, ok := session.NewMessage(role, payload.Message, images); ok {
+		if message, ok := parseMessage(line); ok {
 			found = append(found, message)
 		}
 	}

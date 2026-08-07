@@ -6,4 +6,4 @@ const Name = "agent-session-cleaner"
 
 // Version is read by --version and checked against the release tag, so the
 // two can never drift apart.
-const Version = "0.6.0"
+const Version = "0.7.0"

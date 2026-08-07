@@ -10,7 +10,7 @@
   <p><a href="./README.md">English</a> · <strong>简体中文</strong></p>
 </div>
 
-![界面预览](./example.zh-CN.png)
+![界面预览](./assets/screenshots/example.zh-CN.png)
 
 ## 安装
 

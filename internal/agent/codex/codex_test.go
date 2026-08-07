@@ -29,6 +29,20 @@ func said(kind, text string) string {
 	return `{"type":"event_msg","payload":{"type":"` + kind + `","message":"` + text + `"}}`
 }
 
+func completed(item string) string {
+	return `{"type":"event_msg","payload":{"type":"item_completed","turn_id":"t1",` +
+		`"item":{` + item + `}}}`
+}
+
+func wrote(id, text string) string {
+	return `"type":"UserMessage","id":"` + id + `","content":[{"type":"text","text":"` + text + `"}]`
+}
+
+func replied(id, text string) string {
+	return `"type":"AgentMessage","id":"` + id + `","phase":"final_answer",` +
+		`"content":[{"type":"Text","text":"` + text + `"}]`
+}
+
 func discover(t *testing.T, tree fstest.MapFS) []session.Session {
 	t.Helper()
 	found, err := codex.New("/codex", codex.WithFS(tree)).Discover(t.Context())
@@ -36,6 +50,16 @@ func discover(t *testing.T, tree fstest.MapFS) []session.Session {
 		t.Fatalf("Discover() = %v", err)
 	}
 	return found
+}
+
+func read(t *testing.T, tree fstest.MapFS) []session.Message {
+	t.Helper()
+	a := codex.New("/codex", codex.WithFS(tree))
+	messages, err := a.Messages(t.Context(), only(t, discover(t, tree)))
+	if err != nil {
+		t.Fatalf("Messages() = %v", err)
+	}
+	return messages
 }
 
 func only(t *testing.T, found []session.Session) session.Session {
@@ -127,6 +151,15 @@ func TestTitles(t *testing.T) {
 				meta(`"id":"a","source":"cli"`),
 				said("agent_message", "thinking"),
 				said("user_message", "fix   the\\n build"),
+			)},
+			want: "fix the build",
+		},
+		{
+			name: "the opening message of a paginated rollout",
+			tree: fstest.MapFS{activePath: rollout(
+				meta(`"id":"a","source":"cli","history_mode":"paginated"`),
+				completed(replied("m1", "thinking")),
+				completed(wrote("u1", "fix   the\\n build")),
 			)},
 			want: "fix the build",
 		},
@@ -248,13 +281,7 @@ func TestMessages(t *testing.T) {
 		`{"type":"event_msg","payload":{"type":"user_message","message":"look","images":["a","b"]}}`,
 	)}
 
-	a := codex.New("/codex", codex.WithFS(tree))
-	found := discover(t, tree)
-	messages, err := a.Messages(t.Context(), found[0])
-	if err != nil {
-		t.Fatalf("Messages() = %v", err)
-	}
-
+	messages := read(t, tree)
 	if len(messages) != 3 {
 		t.Fatalf("read %d messages, want 3", len(messages))
 	}
@@ -266,6 +293,41 @@ func TestMessages(t *testing.T) {
 	}
 	if messages[2].Images != 2 {
 		t.Errorf("third message carried %d images, want 2", messages[2].Images)
+	}
+}
+
+func TestMessagesFromAPaginatedRollout(t *testing.T) {
+	t.Parallel()
+
+	messages := read(t, fstest.MapFS{activePath: rollout(
+		meta(`"id":"a","source":"cli","history_mode":"paginated"`),
+		completed(wrote("u1", "hello")),
+		completed(`"type":"Reasoning","id":"r1","summary_text":["pondering"]`),
+		completed(`"type":"CommandExecution","id":"c1","command":["grep","x"],`+
+			`"stdout":"item.type == \"UserMessage\""`),
+		completed(`"type":"UserMessage","id":"u2","content":[`+
+			`{"type":"text","text":"one "},`+
+			`{"type":"image","image_url":"data:image/png;base64,AAAA"},`+
+			`{"type":"text","text":"two"},`+
+			`{"type":"local_image","path":"/tmp/shot.png"}]`),
+		completed(`"type":"AgentMessage","id":"m1","phase":"commentary",`+
+			`"content":[{"type":"Text","text":"working on it"}]`),
+		completed(replied("m2", "done")),
+	)})
+
+	want := []session.Message{
+		{Role: session.User, Text: "hello"},
+		{Role: session.User, Text: "one two", Images: 2},
+		{Role: session.Assistant, Text: "working on it"},
+		{Role: session.Assistant, Text: "done"},
+	}
+	if len(messages) != len(want) {
+		t.Fatalf("read %d messages, want %d: %+v", len(messages), len(want), messages)
+	}
+	for i, message := range messages {
+		if message != want[i] {
+			t.Errorf("message %d = %+v, want %+v", i, message, want[i])
+		}
 	}
 }
 

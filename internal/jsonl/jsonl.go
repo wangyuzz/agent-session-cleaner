@@ -23,7 +23,6 @@ type Scanner struct {
 	reader   *bufio.Reader
 	buf      []byte
 	line     []byte
-	skipped  int
 	err      error
 	finished bool
 }
@@ -60,7 +59,6 @@ func (s *Scanner) Scan() bool {
 		line, oversized, err := s.read()
 		switch {
 		case oversized:
-			s.skipped++
 			continue
 		case len(line) > 0:
 			s.line = line
@@ -115,9 +113,6 @@ func trimNewline(line []byte) []byte {
 
 // Bytes is the current line, valid until the next call to Scan.
 func (s *Scanner) Bytes() []byte { return s.line }
-
-// Skipped counts lines too large to read, for tests and diagnostics.
-func (s *Scanner) Skipped() int { return s.skipped }
 
 // Err is the read error that ended the scan, if it was not simply the end of
 // the input.

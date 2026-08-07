@@ -85,9 +85,6 @@ func TestScannerSkipsBlobsAndKeepsGoing(t *testing.T) {
 	if strings.Join(lines, "|") != "first|last" {
 		t.Errorf("read %q, want first|last", lines)
 	}
-	if scanner.Skipped() != 1 {
-		t.Errorf("Skipped() = %d, want 1", scanner.Skipped())
-	}
 }
 
 func TestScannerReportsReadFailures(t *testing.T) {

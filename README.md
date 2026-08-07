@@ -10,7 +10,7 @@
   <p><strong>English</strong> · <a href="./README.zh-CN.md">简体中文</a></p>
 </div>
 
-![Interface preview](./example.png)
+![Interface preview](./assets/screenshots/example.png)
 
 ## Install
 
