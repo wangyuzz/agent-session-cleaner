@@ -24,10 +24,9 @@ type stub struct {
 	err      error
 }
 
-func (s *stub) Meta() agent.Meta                     { return s.meta }
-func (s *stub) Preflight() error                     { return nil }
-func (s *stub) Writable() bool                       { return !s.readonly }
-func (s *stub) ResumeCommand(session.Session) string { return "" }
+func (s *stub) Meta() agent.Meta { return s.meta }
+func (s *stub) Preflight() error { return nil }
+func (s *stub) Writable() bool   { return !s.readonly }
 
 func (s *stub) Delete(context.Context, session.Session) error { return nil }
 

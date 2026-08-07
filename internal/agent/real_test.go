@@ -109,9 +109,4 @@ func checkConversation(t *testing.T, target agent.Agent, s session.Session) {
 			t.Errorf("message %d is not valid UTF-8", i)
 		}
 	}
-
-	// The resume command has to name this session and nothing else.
-	if command := target.ResumeCommand(s); command == "" {
-		t.Error("no resume command")
-	}
 }

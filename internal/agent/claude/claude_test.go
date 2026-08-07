@@ -359,15 +359,6 @@ func TestCapabilities(t *testing.T) {
 	}
 }
 
-func TestResumeCommand(t *testing.T) {
-	t.Parallel()
-
-	got := claude.New("/tmp/elsewhere").ResumeCommand(session.Session{ID: "abc"})
-	if got != "CLAUDE_CONFIG_DIR=/tmp/elsewhere claude --resume abc" {
-		t.Errorf("ResumeCommand() = %q", got)
-	}
-}
-
 func mkdirAll(t *testing.T, dir string) {
 	t.Helper()
 	if err := os.MkdirAll(dir, 0o755); err != nil {

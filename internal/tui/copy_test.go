@@ -6,51 +6,15 @@ import (
 	"github.com/haowang02/agent-session-cleaner/internal/session"
 )
 
-func TestCopyResumeCommand(t *testing.T) {
+func TestCopySessionID(t *testing.T) {
 	t.Parallel()
 
-	m := start(t, newFake(session.Session{ID: "abc", Title: "work", Cwd: "/work/my app"}))
-	press(t, m, "c")
-
-	// The directory is quoted so a shell reads it as one argument.
-	contains(t, m, "cd '/work/my app' && fake --resume abc")
-	contains(t, m, "Resume command copied to clipboard")
-}
-
-func TestCopyResumeWithoutADirectory(t *testing.T) {
-	t.Parallel()
-
-	m := start(t, newFake(session.Session{ID: "abc", Title: "work"}))
-	press(t, m, "c")
-	contains(t, m, "clipboard: fake --resume abc")
-}
-
-// Only worth saying where there is an unarchive key to say it about.
-func TestCopyMentionsUnarchivingOnlyWhereItExists(t *testing.T) {
-	t.Parallel()
-
-	archived := session.Session{ID: "abc", Title: "work", Archived: true}
-
-	canArchive := start(t, &archivingFake{newFake(archived)})
-	press(t, canArchive, "c")
-	contains(t, canArchive, "unarchive this session with u")
-
-	cannot := start(t, newFake(archived))
-	press(t, cannot, "c")
-	omits(t, cannot, "unarchive this session with u")
-}
-
-// The command is still worth having: it will work on a machine where the agent
-// is installed.
-func TestCopyWarnsWhenTheAgentIsNotInstalled(t *testing.T) {
-	t.Parallel()
-
-	f := newFake(session.Session{ID: "abc", Title: "work"})
+	f := newFake(session.Session{ID: "abc", Title: "work", Cwd: "/work/my app", Archived: true})
 	f.readonly = true
 	m := start(t, f)
 	press(t, m, "c")
 
-	contains(t, m, "Fake CLI is unavailable on this machine")
+	contains(t, m, "Session ID copied to clipboard: abc")
 }
 
 func TestCopyWithNothingUnderTheCursor(t *testing.T) {
@@ -67,7 +31,7 @@ func TestLateCopyResultCannotOverwriteNewerState(t *testing.T) {
 	m := start(t, newFake(tree()...))
 	m.copySeq = 2
 	m.status = statusLine{text: "newer status"}
-	if cmd := m.copied(copiedMsg{seq: 1, command: "old", native: false}); cmd != nil {
+	if cmd := m.copiedSessionID(copiedSessionIDMsg{seq: 1, sessionID: "old", native: false}); cmd != nil {
 		t.Error("a stale copy attempted an OSC 52 fallback")
 	}
 	if m.status.text != "newer status" {
@@ -75,7 +39,7 @@ func TestLateCopyResultCannotOverwriteNewerState(t *testing.T) {
 	}
 
 	m.busy = true
-	m.copied(copiedMsg{seq: 2, command: "current", native: true})
+	m.copiedSessionID(copiedSessionIDMsg{seq: 2, sessionID: "current", native: true})
 	if m.status.text != "newer status" {
 		t.Errorf("copy completion hid operation progress with %q", m.status.text)
 	}

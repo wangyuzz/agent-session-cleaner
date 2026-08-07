@@ -34,14 +34,14 @@ func TestCopyUsesTheFirstHelperThatWorks(t *testing.T) {
 		{name: script(t, sink, 0)},
 	}
 
-	if !copyWith(context.Background(), candidates, "codex resume abc") {
+	if !copyWith(context.Background(), candidates, "session-abc") {
 		t.Fatal("copyWith reported failure")
 	}
 	got, err := os.ReadFile(sink)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(got) != "codex resume abc" {
+	if string(got) != "session-abc" {
 		t.Errorf("helper received %q", got)
 	}
 }

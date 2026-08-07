@@ -143,9 +143,8 @@ func (a *Agent) Meta() agent.Meta {
 // Preflight refuses a directory the command line could never be pointed at.
 //
 // XDG_DATA_HOME names the *parent*: OpenCode appends "opencode" to it. A
-// directory by any other name can be read, but every command built from it —
-// deleting, and the resume line handed to the clipboard — would name a sibling
-// directory instead, which is a different session tree.
+// directory by any other name can be read, but a delete command built from it
+// would name a sibling directory instead, which is a different session tree.
 func (a *Agent) Preflight() error {
 	if filepath.Base(a.home) != DataDirName {
 		return i18n.Wrap(agent.ErrUnusableHome, i18n.OpenCodeHomeNotDataDir, i18n.Args{
@@ -158,19 +157,6 @@ func (a *Agent) Preflight() error {
 // Writable reports whether the OpenCode command line is installed. Listing
 // reads the database directly; deleting does not.
 func (a *Agent) Writable() bool { return a.installed() }
-
-// ResumeCommand reopens a session in OpenCode itself, pinning the session
-// tree when it is not the default one.
-func (a *Agent) ResumeCommand(s session.Session) string {
-	var parts []string
-	if a.home != DefaultHome() {
-		// The variable names the parent of the directory we were pointed at.
-		// That only resolves back to this tree because Preflight refused any
-		// directory by another name before anything got this far.
-		parts = append(parts, "XDG_DATA_HOME="+agent.ShellQuote(filepath.Dir(a.home)))
-	}
-	return strings.Join(append(parts, Binary, "-s", s.ID), " ")
-}
 
 func (a *Agent) database() string { return filepath.Join(a.home, databaseFile) }
 

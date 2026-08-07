@@ -58,31 +58,6 @@ func TestEveryAgentDescribesItself(t *testing.T) {
 	}
 }
 
-func TestShellQuote(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name  string
-		value string
-		want  string
-	}{
-		{"a plain path needs nothing", "/home/me/.codex", "/home/me/.codex"},
-		{"a space forces quoting", "/home/my codex", "'/home/my codex'"},
-		{"nothing at all", "", "''"},
-		{"an embedded quote", "it's", `'it'"'"'s'`},
-		{"a shell metacharacter", "a;rm -rf /", "'a;rm -rf /'"},
-		{"a subshell", "$(whoami)", "'$(whoami)'"},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-			if got := agent.ShellQuote(test.value); got != test.want {
-				t.Errorf("ShellQuote(%q) = %q, want %q", test.value, got, test.want)
-			}
-		})
-	}
-}
-
 func TestExpandHome(t *testing.T) {
 	// Not parallel: the home directory is read from the environment.
 	home := t.TempDir()

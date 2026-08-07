@@ -10,7 +10,6 @@ package agent
 import (
 	"context"
 	"errors"
-	"strings"
 
 	"github.com/haowang02/agent-session-cleaner/internal/i18n"
 	"github.com/haowang02/agent-session-cleaner/internal/session"
@@ -67,10 +66,6 @@ type Agent interface {
 	// or injected context.
 	Messages(ctx context.Context, s session.Session) ([]session.Message, error)
 
-	// ResumeCommand is the shell command that reopens this session in the
-	// agent itself.
-	ResumeCommand(s session.Session) string
-
 	// Delete removes a session for good. No backup is taken.
 	Delete(ctx context.Context, s session.Session) error
 }
@@ -98,25 +93,3 @@ var (
 	// the agent's own session layout or at a symbolic link.
 	ErrUnsafeSessionPath = errors.New("unsafe session path")
 )
-
-// ShellQuote wraps a value so a shell reads it as one argument, which matters
-// for the resume commands handed to the clipboard.
-func ShellQuote(value string) string {
-	if value == "" {
-		return "''"
-	}
-	if strings.IndexFunc(value, needsQuoting) < 0 {
-		return value
-	}
-	return "'" + strings.ReplaceAll(value, "'", `'"'"'`) + "'"
-}
-
-func needsQuoting(r rune) bool {
-	switch {
-	case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
-		return false
-	case strings.ContainsRune("@%+=:,./-_", r):
-		return false
-	}
-	return true
-}

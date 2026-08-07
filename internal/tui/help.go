@@ -33,7 +33,7 @@ var helpSections = []helpSection{
 	}},
 	{name: i18n.HelpManage, entries: []helpEntry{
 		{keys: "␣", what: i18n.HelpSelectToggle, gated: pickAction},
-		{keys: "c", what: i18n.HelpCopy, gated: copyAction},
+		{keys: "c", what: i18n.HelpCopySessionID, gated: copySessionIDAction},
 		{keys: "d", what: i18n.HelpDelete, gated: deleteAction},
 		{keys: "a", what: i18n.HelpArchive, gated: archiveAction},
 		{keys: "u", what: i18n.HelpUnarchive, gated: unarchiveAction},

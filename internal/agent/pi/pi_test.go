@@ -512,15 +512,6 @@ func TestCapabilities(t *testing.T) {
 	}
 }
 
-func TestResumeCommand(t *testing.T) {
-	t.Parallel()
-
-	got := pi.New("/tmp/elsewhere").ResumeCommand(session.Session{ID: "abc"})
-	if got != "PI_CODING_AGENT_DIR=/tmp/elsewhere pi --session abc" {
-		t.Errorf("ResumeCommand() = %q", got)
-	}
-}
-
 func TestDefaultHome(t *testing.T) {
 	// Not parallel: the home directory is read from the environment.
 	home := t.TempDir()

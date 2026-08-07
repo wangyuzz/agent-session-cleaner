@@ -108,16 +108,6 @@ func (a *Agent) Preflight() error { return nil }
 // so nothing has to be installed for it.
 func (a *Agent) Writable() bool { return true }
 
-// ResumeCommand reopens a session in Claude Code itself, pinning the session
-// tree when it is not the default one.
-func (a *Agent) ResumeCommand(s session.Session) string {
-	var parts []string
-	if a.home != DefaultHome() {
-		parts = append(parts, "CLAUDE_CONFIG_DIR="+agent.ShellQuote(a.home))
-	}
-	return strings.Join(append(parts, Binary, "--resume", s.ID), " ")
-}
-
 // Discover reads every project's transcripts.
 func (a *Agent) Discover(ctx context.Context) ([]session.Session, error) {
 	projects, err := fs.ReadDir(a.fsys, projectsDir)

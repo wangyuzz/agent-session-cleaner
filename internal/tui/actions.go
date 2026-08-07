@@ -5,7 +5,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/haowang02/agent-session-cleaner/internal/agent"
 	"github.com/haowang02/agent-session-cleaner/internal/clip"
 	"github.com/haowang02/agent-session-cleaner/internal/i18n"
 	"github.com/haowang02/agent-session-cleaner/internal/session"
@@ -15,11 +14,10 @@ import (
 // the rest into a count.
 const bulkPreviewLimit = 6
 
-type copiedMsg struct {
-	command string
-	note    string
-	native  bool
-	seq     uint64
+type copiedSessionIDMsg struct {
+	sessionID string
+	native    bool
+	seq       uint64
 }
 
 func (m *Model) archive() tea.Cmd {
@@ -185,27 +183,15 @@ func (m *Model) cascadeNote(extra int) string {
 	return m.print.N(i18n.CascadeOrphansOne, i18n.CascadeOrphansMany, extra)
 }
 
-func (m *Model) copyResume() tea.Cmd {
+func (m *Model) copySessionID() tea.Cmd {
 	current, ok := m.current()
 	if !ok {
 		m.warn(i18n.NoCurrentSession)
 		return nil
 	}
+	sessionID := current.ID
 
-	command := m.agent.ResumeCommand(current)
-	if current.Cwd != "" {
-		command = "cd " + agent.ShellQuote(current.Cwd) + " && " + command
-	}
-
-	note := ""
-	switch {
-	case !m.agent.Writable():
-		note = m.print.T(i18n.CopyMissingCLINote, i18n.Args{"agent": m.meta.Label})
-	case current.Archived && m.archiver != nil:
-		// Only worth saying where there is an unarchive key to say it about.
-		note = m.print.T(i18n.CopyArchivedNote)
-	}
-	m.say(i18n.Copying)
+	m.say(i18n.CopyingSessionID)
 	if m.copyStop != nil {
 		m.copyStop()
 	}
@@ -214,13 +200,14 @@ func (m *Model) copyResume() tea.Cmd {
 	ctx, cancel := context.WithCancel(m.ctx)
 	m.copyStop = cancel
 	return func() tea.Msg {
-		return copiedMsg{command: command, note: note, native: clip.Copy(ctx, command), seq: seq}
+		return copiedSessionIDMsg{sessionID: sessionID, native: clip.Copy(ctx, sessionID), seq: seq}
 	}
 }
 
-func (m *Model) copied(msg copiedMsg) tea.Cmd {
+func (m *Model) copiedSessionID(msg copiedSessionIDMsg) tea.Cmd {
 	// A later copy cancels an earlier helper. Its completion must not put the
-	// older command back onto the terminal clipboard or overwrite newer status.
+	// older session ID back onto the terminal clipboard or overwrite newer
+	// status.
 	if msg.seq != m.copySeq {
 		return nil
 	}
@@ -229,13 +216,13 @@ func (m *Model) copied(msg copiedMsg) tea.Cmd {
 		m.copyStop = nil
 	}
 	if !m.busy && !m.refreshing {
-		m.report(i18n.CopySuccess, i18n.Args{"note": msg.note, "command": msg.command})
+		m.report(i18n.CopySessionIDSuccess, i18n.Args{"session_id": msg.sessionID})
 	}
 	if msg.native {
 		return nil
 	}
 	// No native helper. OSC 52 works in terminals that support it.
-	return tea.SetClipboard(msg.command)
+	return tea.SetClipboard(msg.sessionID)
 }
 
 func (m *Model) progressed(update opUpdate) tea.Cmd {

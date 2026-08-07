@@ -141,16 +141,6 @@ func (a *Agent) Preflight() error { return nil }
 // from the rollout files alone; changing anything does not.
 func (a *Agent) Writable() bool { return a.installed() }
 
-// ResumeCommand reopens a session in Codex itself, pinning the session tree
-// when it is not the default one.
-func (a *Agent) ResumeCommand(s session.Session) string {
-	var parts []string
-	if a.home != DefaultHome() {
-		parts = append(parts, "CODEX_HOME="+agent.ShellQuote(a.home))
-	}
-	return strings.Join(append(parts, Binary, "resume", s.ID), " ")
-}
-
 // Discover reads every rollout under both session trees.
 func (a *Agent) Discover(ctx context.Context) ([]session.Session, error) {
 	names := a.threadNames()

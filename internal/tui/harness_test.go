@@ -48,9 +48,6 @@ func newFake(sessions ...session.Session) *fake {
 func (f *fake) Meta() agent.Meta { return f.meta }
 func (f *fake) Preflight() error { return nil }
 func (f *fake) Writable() bool   { return !f.readonly }
-func (f *fake) ResumeCommand(s session.Session) string {
-	return "fake --resume " + s.ID
-}
 
 func (f *fake) Discover(context.Context) ([]session.Session, error) {
 	f.mu.Lock()

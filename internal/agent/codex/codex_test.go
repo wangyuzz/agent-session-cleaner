@@ -438,31 +438,3 @@ func TestOperationsDelegateToTheCodexCommand(t *testing.T) {
 		}
 	}
 }
-
-func TestResumeCommandPinsANonDefaultHome(t *testing.T) {
-	t.Parallel()
-
-	got := codex.New("/tmp/elsewhere").ResumeCommand(session.Session{ID: "abc"})
-	if got != "CODEX_HOME=/tmp/elsewhere codex resume abc" {
-		t.Errorf("ResumeCommand() = %q", got)
-	}
-}
-
-func TestResumeCommandLeavesTheDefaultHomeUnsaid(t *testing.T) {
-	// Not parallel: the default home is read from the environment.
-	t.Setenv("CODEX_HOME", "/tmp/pinned")
-
-	got := codex.New("").ResumeCommand(session.Session{ID: "abc"})
-	if got != "codex resume abc" {
-		t.Errorf("ResumeCommand() = %q, want no environment prefix", got)
-	}
-}
-
-func TestResumeCommandQuotesAwkwardPaths(t *testing.T) {
-	t.Parallel()
-
-	got := codex.New("/tmp/my codex").ResumeCommand(session.Session{ID: "abc"})
-	if got != "CODEX_HOME='/tmp/my codex' codex resume abc" {
-		t.Errorf("ResumeCommand() = %q", got)
-	}
-}

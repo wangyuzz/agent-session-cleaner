@@ -71,7 +71,7 @@ The footer shows the shortcuts available for the current agent and installation.
 | `/` | Search titles, working directories, session IDs, and clients | All agents |
 | `?` | Search backward | All agents |
 | `n` / `N` | Jump to the next / previous match | All agents |
-| `c` | Copy the resume command for the current session | All agents |
+| `c` | Copy the current session ID | All agents |
 | `d` | Delete the current session or selected sessions | All agents |
 | `a` | Archive the current session or selected sessions | Codex only |
 | `u` | Unarchive the current session or selected sessions | Codex only |
@@ -88,16 +88,14 @@ Press Space or double-click to select or deselect a session. Selecting a session
 
 ## Resume a session
 
-Press `c` to copy a ready-to-run command for the current session. If the session records a working directory, the command enters that directory first so the agent resumes in the correct project context. With the default data directories, commands look like this:
+To resume the current session, press `c` to copy its ID, then paste it into the corresponding agent command:
 
 ```bash
-cd /path/to/project && codex resume <session-id>
-cd /path/to/project && claude --resume <session-id>
-cd /path/to/project && opencode -s <session-id>
-cd /path/to/project && pi --session <session-id>
+codex resume <session-id>
+claude --resume <session-id>
+opencode -s <session-id>
+pi --session <session-id>
 ```
-
-When a custom data directory is in use, the copied command also includes the corresponding `CODEX_HOME`, `CLAUDE_CONFIG_DIR`, `XDG_DATA_HOME`, or `PI_CODING_AGENT_DIR` assignment.
 
 ## Deletion and archiving
 

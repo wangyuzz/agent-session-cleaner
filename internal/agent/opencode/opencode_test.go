@@ -268,7 +268,7 @@ func TestMessages(t *testing.T) {
 }
 
 // XDG_DATA_HOME names the *parent*: OpenCode appends "opencode" to it. A
-// directory by any other name can be read, but every command built from it
+// directory by any other name can be read, but a delete command built from it
 // would name a sibling directory, which is a different session tree.
 func TestPreflightRefusesAMisnamedDirectory(t *testing.T) {
 	t.Parallel()
@@ -442,15 +442,6 @@ func TestCapabilities(t *testing.T) {
 	}
 	if meta.OrphanLabel == 0 {
 		t.Error("migrated data predates the cascade guarantee, so orphans can exist")
-	}
-}
-
-func TestResumeCommand(t *testing.T) {
-	t.Parallel()
-
-	got := opencode.New("/tmp/data/opencode").ResumeCommand(session.Session{ID: "ses_a"})
-	if got != "XDG_DATA_HOME=/tmp/data opencode -s ses_a" {
-		t.Errorf("ResumeCommand() = %q", got)
 	}
 }
 

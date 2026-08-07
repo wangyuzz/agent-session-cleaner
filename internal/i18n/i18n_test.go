@@ -60,9 +60,9 @@ func TestT(t *testing.T) {
 	if got := p.T(Today); got != "Today" {
 		t.Errorf("T(Today) = %q", got)
 	}
-	got := p.T(CopySuccess, Args{"note": "", "command": "codex resume abc"})
-	if want := "Resume command copied to clipboard: codex resume abc"; got != want {
-		t.Errorf("T(CopySuccess) = %q, want %q", got, want)
+	got := p.T(CopySessionIDSuccess, Args{"session_id": "abc"})
+	if want := "Session ID copied to clipboard: abc"; got != want {
+		t.Errorf("T(CopySessionIDSuccess) = %q, want %q", got, want)
 	}
 	// A name with no value stays visible instead of leaving a hole.
 	if got := p.T(SpawnedBy); !strings.Contains(got, "{session_id}") {

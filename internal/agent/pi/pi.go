@@ -127,19 +127,6 @@ func (a *Agent) Preflight() error { return nil }
 // so nothing has to be installed for it.
 func (a *Agent) Writable() bool { return true }
 
-// ResumeCommand reopens a session in Pi itself, pinning the session tree when
-// it is not the default one.
-//
-// Pi resolves a bare id against the current project first and then against
-// every other one, so the command works from anywhere.
-func (a *Agent) ResumeCommand(s session.Session) string {
-	var parts []string
-	if a.home != DefaultHome() {
-		parts = append(parts, "PI_CODING_AGENT_DIR="+agent.ShellQuote(a.home))
-	}
-	return strings.Join(append(parts, Binary, "--session", agent.ShellQuote(s.ID)), " ")
-}
-
 // Discover reads every session file, one directory per project.
 func (a *Agent) Discover(ctx context.Context) ([]session.Session, error) {
 	projects, err := fs.ReadDir(a.fsys, sessionsDir)

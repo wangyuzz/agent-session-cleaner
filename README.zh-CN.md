@@ -71,7 +71,7 @@ AGENT_SESSION_CLEANER_LANG=zh-CN asc
 | `/` | 搜索标题、工作目录、会话 ID 和客户端 | 全部 Agent |
 | `?` | 反向搜索 | 全部 Agent |
 | `n` / `N` | 下一个 / 上一个匹配项 | 全部 Agent |
-| `c` | 复制当前会话的恢复命令 | 全部 Agent |
+| `c` | 复制当前会话的 ID | 全部 Agent |
 | `d` | 删除当前会话或所有已选会话 | 全部 Agent |
 | `a` | 归档当前会话或所有已选会话 | 仅 Codex |
 | `u` | 取消归档当前会话或所有已选会话 | 仅 Codex |
@@ -88,16 +88,14 @@ AGENT_SESSION_CLEANER_LANG=zh-CN asc
 
 ## 恢复会话
 
-按 `c` 可复制一条用于恢复当前会话的命令。如果会话记录了工作目录，命令会先进入该目录，确保 Agent 在正确的项目上下文中恢复。使用默认数据目录时，命令形式如下：
+如需恢复当前会话，按 `c` 复制其 ID，然后将其粘贴到对应 Agent 的命令中：
 
 ```bash
-cd /path/to/project && codex resume <session-id>
-cd /path/to/project && claude --resume <session-id>
-cd /path/to/project && opencode -s <session-id>
-cd /path/to/project && pi --session <session-id>
+codex resume <session-id>
+claude --resume <session-id>
+opencode -s <session-id>
+pi --session <session-id>
 ```
-
-使用自定义数据目录时，复制的命令还会包含相应的 `CODEX_HOME`、`CLAUDE_CONFIG_DIR`、`XDG_DATA_HOME` 或 `PI_CODING_AGENT_DIR` 环境变量。
 
 ## 删除与归档
 
