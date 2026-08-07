@@ -71,3 +71,27 @@ func TestCopyReportsWhenNothingIsAvailable(t *testing.T) {
 		t.Error("copyWith claimed success with no helper installed")
 	}
 }
+
+func TestSSHSessionUsesTerminalClipboard(t *testing.T) {
+	t.Parallel()
+
+	for _, variable := range []string{"SSH_CONNECTION", "SSH_CLIENT", "SSH_TTY"} {
+		variable := variable
+		t.Run(variable, func(t *testing.T) {
+			t.Parallel()
+			getenv := func(name string) string {
+				if name == variable {
+					return "set"
+				}
+				return ""
+			}
+			sink := filepath.Join(t.TempDir(), "clipboard")
+			if copyFor(context.Background(), []helper{{name: script(t, sink, 0)}}, "text", getenv) {
+				t.Error("native clipboard helper ran over SSH")
+			}
+			if _, err := os.Stat(sink); !os.IsNotExist(err) {
+				t.Errorf("native clipboard helper wrote over SSH: %v", err)
+			}
+		})
+	}
+}

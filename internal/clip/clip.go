@@ -1,12 +1,12 @@
 // Package clip puts text on the system clipboard.
 //
-// A terminal can be asked to do this over OSC 52, but that escape sequence is
-// ignored by a fair number of terminals — macOS Terminal among them — so a
-// native helper is tried first and OSC 52 is left to the caller as a fallback.
+// Over SSH, OSC 52 lets the client terminal handle the clipboard. Elsewhere a
+// native helper is tried first because some terminals ignore that sequence.
 package clip
 
 import (
 	"context"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -28,10 +28,22 @@ var helpers = []helper{
 }
 
 // Copy puts text on the clipboard, reporting whether a native helper managed
-// it. False means the caller should fall back to OSC 52. The caller's context
-// cancels helpers promptly when the interface exits.
+// it. SSH sessions always report false so the caller uses OSC 52 on the client.
+// Otherwise, false means no helper worked. The caller's context cancels helpers
+// promptly when the interface exits.
 func Copy(ctx context.Context, text string) bool {
-	return copyWith(ctx, helpers, text)
+	return copyFor(ctx, helpers, text, os.Getenv)
+}
+
+func copyFor(ctx context.Context, candidates []helper, text string, getenv func(string) string) bool {
+	if sshSession(getenv) {
+		return false
+	}
+	return copyWith(ctx, candidates, text)
+}
+
+func sshSession(getenv func(string) string) bool {
+	return getenv("SSH_CONNECTION") != "" || getenv("SSH_CLIENT") != "" || getenv("SSH_TTY") != ""
 }
 
 func copyWith(ctx context.Context, candidates []helper, text string) bool {
