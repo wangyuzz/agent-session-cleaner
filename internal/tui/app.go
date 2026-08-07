@@ -9,6 +9,7 @@ package tui
 
 import (
 	"context"
+	"time"
 
 	"charm.land/bubbles/v2/textinput"
 	"charm.land/bubbles/v2/viewport"
@@ -62,9 +63,10 @@ type Model struct {
 	picked session.Selection
 
 	focus focusTarget
-	// clicked remembers the last row a click landed on, so a second click on
-	// it reads as "this one" and picks it, the way Space does.
+	// clicked remembers the last row a click landed on, so a timely second
+	// click can pick it, the way Space does.
 	clicked   int
+	clickedAt time.Time
 	detail    viewport.Model
 	messages  map[cacheKey][]session.Message
 	order     []cacheKey // insertion order, for evicting the oldest

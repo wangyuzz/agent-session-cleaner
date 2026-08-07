@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"time"
+
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/haowang02/agent-session-cleaner/internal/i18n"
@@ -17,6 +19,8 @@ const (
 	// single words.
 	detailMinWidth = 24
 )
+
+const doubleClickWindow = 500 * time.Millisecond
 
 func (m *Model) resize() tea.Cmd {
 	m.resizePanes()
@@ -125,6 +129,7 @@ func (m *Model) click(msg tea.MouseClickMsg) tea.Cmd {
 		return nil
 	}
 	previous := m.clicked
+	previousAt := m.clickedAt
 	m.clicked = -1
 	if mouse.Y < bannerHeight || mouse.Y >= bannerHeight+m.bodyHeight() {
 		return nil
@@ -142,11 +147,14 @@ func (m *Model) click(msg tea.MouseClickMsg) tea.Cmd {
 		return nil
 	}
 
-	if row == m.cursor && previous == row {
+	now := time.Now()
+	elapsed := now.Sub(previousAt)
+	if row == m.cursor && previous == row && elapsed >= 0 && elapsed <= doubleClickWindow {
 		m.pick()
 		return nil
 	}
 	m.clicked = row
+	m.clickedAt = now
 	m.setCursor(row)
 	return m.showCurrent()
 }

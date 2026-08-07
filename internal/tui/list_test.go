@@ -231,6 +231,38 @@ func TestClickOutsideTheListBodyDoesNotSelectAnInvisibleRow(t *testing.T) {
 	}
 }
 
+func TestDoubleClickRequiresTwoTimelyClicks(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name            string
+		elapsed         time.Duration
+		initiallyPicked bool
+		wantPicked      bool
+	}{
+		{"within the window", doubleClickWindow / 2, false, true},
+		{"timely deselection", doubleClickWindow / 2, true, false},
+		{"late selection", doubleClickWindow + time.Second, false, false},
+		{"late deselection", doubleClickWindow + time.Second, true, true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			m := start(t, newFake(tree()...))
+			if test.initiallyPicked {
+				m.pick()
+			}
+			click(t, m, 1, bannerHeight)
+			m.clickedAt = m.clickedAt.Add(-test.elapsed)
+
+			click(t, m, 1, bannerHeight)
+
+			if got := !m.picked.Empty(); got != test.wantPicked {
+				t.Errorf("picked = %t after %v, want %t", got, test.elapsed, test.wantPicked)
+			}
+		})
+	}
+}
+
 func TestBannerCounts(t *testing.T) {
 	t.Parallel()
 
