@@ -128,6 +128,7 @@ func (m *Model) click(msg tea.MouseClickMsg) tea.Cmd {
 	if mouse.Button != tea.MouseLeft {
 		return nil
 	}
+	m.endDrag()
 	previous := m.clicked
 	previousAt := m.clickedAt
 	m.clicked = -1
@@ -155,6 +156,52 @@ func (m *Model) click(msg tea.MouseClickMsg) tea.Cmd {
 	}
 	m.clicked = row
 	m.clickedAt = now
+	m.dragStart = row
+	m.dragInitial = m.picked.Clone()
+	m.setCursor(row)
+	return m.showCurrent()
+}
+
+func (m *Model) endDrag() {
+	m.dragStart = -1
+	m.dragInitial.Clear()
+}
+
+func (m *Model) endMouseSequences() {
+	m.clicked = -1
+	m.endDrag()
+}
+
+func (m *Model) drag(msg tea.MouseMotionMsg) tea.Cmd {
+	mouse := msg.Mouse()
+	if mouse.Button != tea.MouseLeft || m.dragStart < 0 {
+		return nil
+	}
+	m.clicked = -1
+	if mouse.X >= m.listWidth() || mouse.Y < bannerHeight ||
+		mouse.Y >= bannerHeight+m.bodyHeight() {
+		return nil
+	}
+	row := m.top + mouse.Y - bannerHeight
+	if row >= len(m.rows) {
+		return nil
+	}
+
+	m.picked = m.dragInitial.Clone()
+	if !m.agent.Writable() {
+		m.warn(i18n.MissingCLIModify, i18n.Args{"agent": m.meta.Label})
+	} else {
+		selecting := !m.dragInitial.Has(m.rows[m.dragStart].Session.ID)
+		for index := min(m.dragStart, row); index <= max(m.dragStart, row); index++ {
+			id := m.rows[index].Session.ID
+			if m.picked.Has(id) != selecting {
+				m.picked.Toggle(m.forest, id)
+			}
+		}
+	}
+	if row == m.cursor {
+		return nil
+	}
 	m.setCursor(row)
 	return m.showCurrent()
 }

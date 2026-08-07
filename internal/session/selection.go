@@ -1,5 +1,7 @@
 package session
 
+import "maps"
+
 // Selection is the set of sessions picked out for one action to be applied to
 // all of them. A non-empty selection *is* multi-select mode: there is no
 // separate flag, so the mode cannot be on with nothing in it.
@@ -21,6 +23,9 @@ func (s *Selection) Has(id string) bool { return s.ids[id] }
 
 // Clear drops everything, leaving multi-select mode.
 func (s *Selection) Clear() { s.ids = nil }
+
+// Clone returns an independent copy of the selection.
+func (s Selection) Clone() Selection { return Selection{ids: maps.Clone(s.ids)} }
 
 // Toggle picks a session out, or releases it.
 //

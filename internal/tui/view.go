@@ -30,8 +30,8 @@ func (m *Model) View() tea.View {
 
 	view := tea.NewView(m.paint(screen))
 	view.AltScreen = true
-	// Clicking a row moves the cursor to it; clicking it again picks it out,
-	// which is what Space does.
+	// Clicking a row moves the cursor to it, clicking it again picks it out,
+	// and dragging across rows applies one selection state to the range.
 	view.MouseMode = tea.MouseModeCellMotion
 	view.WindowTitle = m.print.T(i18n.AppTitle, i18n.Args{"agent": m.meta.Label})
 	if m.search.active {

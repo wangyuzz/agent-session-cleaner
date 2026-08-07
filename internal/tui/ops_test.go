@@ -282,6 +282,31 @@ func TestSuccessfulBatchLeavesMultiSelect(t *testing.T) {
 	}
 }
 
+func TestOperationCompletionEndsDrag(t *testing.T) {
+	t.Parallel()
+
+	m := start(t, newFake(
+		session.Session{ID: "one", Title: "one"},
+		session.Session{ID: "two", Title: "two"},
+		session.Session{ID: "three", Title: "three"},
+	))
+	press(t, m, "space", "j", "space", "j", "space")
+	m.busy = true
+	click(t, m, 1, bannerHeight+1)
+	dragToRow(t, m, 2)
+
+	_ = m.progressed(opUpdate{done: true, result: opResult{
+		plan: plan{
+			kind: opDelete, single: true, subject: m.rows[0].Session,
+		},
+		total: 1, settled: []string{"one"},
+	}})
+	dragToRow(t, m, 1)
+	if !m.picked.Empty() {
+		t.Error("motion restored a selection snapshot after an operation completed")
+	}
+}
+
 // A cascade gives up at the first refusal, and says why the session under the
 // cursor was left alone.
 func TestCascadeStopsAtARefusingSubAgent(t *testing.T) {

@@ -67,6 +67,12 @@ type Model struct {
 	// click can pick it, the way Space does.
 	clicked   int
 	clickedAt time.Time
+	// A drag restores dragInitial on every move, then gives the range from
+	// dragStart to the pointer the opposite of the anchor's initial state.
+	// A start of -1 means no drag.
+	dragStart   int
+	dragInitial session.Selection
+
 	detail    viewport.Model
 	messages  map[cacheKey][]session.Message
 	order     []cacheKey // insertion order, for evicting the oldest
@@ -116,6 +122,8 @@ func New(ctx context.Context, target agent.Agent, print *i18n.Printer) *Model {
 		clicked:  -1,
 		detail:   viewport.New(),
 		search:   search{input: input, direction: 1},
+
+		dragStart: -1,
 	}
 	m.restyle(true)
 	return m
@@ -192,6 +200,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, m.click(msg)
 
+	case tea.MouseReleaseMsg:
+		m.endDrag()
+		return m, nil
+
+	case tea.MouseMotionMsg:
+		if m.help || m.dialog != nil || m.search.active {
+			return m, nil
+		}
+		return m, m.drag(msg)
+
 	case tea.MouseWheelMsg:
 		if m.dialog != nil || m.search.active {
 			return m, nil
@@ -206,8 +224,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) press(msg tea.KeyPressMsg) tea.Cmd {
-	// A keyboard action breaks a mouse double-click sequence.
-	m.clicked = -1
+	// A keyboard action breaks mouse click and drag sequences.
+	m.endMouseSequences()
 	// Ctrl+C is the terminal-wide way out, including while a help screen,
 	// search field or confirmation has focus. An active mutation still gets
 	// the same partial-operation protection as q.

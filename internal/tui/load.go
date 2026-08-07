@@ -69,7 +69,7 @@ func (m *Model) loaded(msg loadedMsg) tea.Cmd {
 	// decide about, and an archived row already says what it is.
 	m.forest = session.Build(msg.sessions)
 	m.rows = m.forest.Rows()
-	m.clicked = -1
+	m.endMouseSequences()
 	// Whatever has been deleted since the selection was made is no longer
 	// selectable, and would otherwise keep multi-select on with nothing in it.
 	m.picked.Retain(m.forest)

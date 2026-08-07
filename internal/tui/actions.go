@@ -273,6 +273,7 @@ func (m *Model) progressed(update opUpdate) tea.Cmd {
 
 	m.busy = false
 	m.stale = true
+	m.endMouseSequences()
 	// What this settled is no longer what a selection was made for. What it
 	// could not settle still is, and so is anything picked out while it ran.
 	m.picked.Remove(update.result.settled...)

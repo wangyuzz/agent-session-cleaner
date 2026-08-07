@@ -149,6 +149,18 @@ func send(t *testing.T, m *Model, msg tea.Msg) tea.Cmd {
 	return cmd
 }
 
+func dragToRow(t *testing.T, m *Model, row int) {
+	t.Helper()
+	drive(t, m, send(t, m, tea.MouseMotionMsg{
+		Button: tea.MouseLeft, X: 1, Y: bannerHeight + row,
+	}))
+}
+
+func releaseMouse(t *testing.T, m *Model) {
+	t.Helper()
+	drive(t, m, send(t, m, tea.MouseReleaseMsg{Button: tea.MouseLeft}))
+}
+
 // press feeds one key by name and settles whatever it starts.
 func press(t *testing.T, m *Model, keys ...string) {
 	t.Helper()

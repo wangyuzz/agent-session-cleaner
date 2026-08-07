@@ -263,6 +263,79 @@ func TestDoubleClickRequiresTwoTimelyClicks(t *testing.T) {
 	}
 }
 
+func TestDragUsesDynamicRange(t *testing.T) {
+	t.Parallel()
+
+	sessions := []session.Session{
+		{ID: "one", Title: "one"},
+		{ID: "two", Title: "two"},
+		{ID: "three", Title: "three"},
+		{ID: "four", Title: "four"},
+	}
+
+	for _, test := range []struct {
+		name              string
+		initial           []string
+		back              int
+		wantFar, wantBack string
+	}{
+		{"select", []string{"three"}, 1, "two,three,four", "two,three"},
+		{"deselect", []string{"one", "two", "three", "four"}, 2, "one", "one,four"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			m := start(t, newFake(sessions...))
+			for _, id := range test.initial {
+				m.picked.Toggle(m.forest, id)
+			}
+			click(t, m, 1, bannerHeight+1)
+			dragToRow(t, m, 3)
+			if got := titles(m.picked.Picked(m.forest)); got != test.wantFar {
+				t.Errorf("drag picked %s, want %s", got, test.wantFar)
+			}
+
+			dragToRow(t, m, test.back)
+			if got := titles(m.picked.Picked(m.forest)); got != test.wantBack {
+				t.Errorf("dragging back picked %s, want %s", got, test.wantBack)
+			}
+
+			releaseMouse(t, m)
+			dragToRow(t, m, 0)
+			if got := titles(m.picked.Picked(m.forest)); got != test.wantBack {
+				t.Errorf("motion after release changed the selection to %s", got)
+			}
+		})
+	}
+}
+
+func TestReloadEndsDrag(t *testing.T) {
+	t.Parallel()
+
+	m := start(t, newFake(tree()...))
+	click(t, m, 1, bannerHeight+3)
+	drive(t, m, send(t, m, loadedMsg{sessions: tree()[:1]}))
+	dragToRow(t, m, 0)
+
+	if !m.picked.Empty() {
+		t.Error("motion after a reload selected from a stale drag origin")
+	}
+}
+
+func TestDraggingAwayEndsADoubleClick(t *testing.T) {
+	t.Parallel()
+
+	m := start(t, newFake(tree()...))
+	click(t, m, 1, bannerHeight)
+	drive(t, m, send(t, m, tea.MouseMotionMsg{
+		Button: tea.MouseLeft, X: m.listWidth() + 1, Y: bannerHeight,
+	}))
+	releaseMouse(t, m)
+	click(t, m, 1, bannerHeight)
+
+	if !m.picked.Empty() {
+		t.Error("clicking after a drag away was treated as a double click")
+	}
+}
+
 func TestBannerCounts(t *testing.T) {
 	t.Parallel()
 
