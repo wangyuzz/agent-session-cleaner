@@ -4,7 +4,7 @@
   <p>
     <a href="https://github.com/haowang02/agent-session-cleaner/releases/latest"><img src="https://img.shields.io/github/v/release/haowang02/agent-session-cleaner?label=release" alt="最新版本"></a>
     <a href="https://github.com/haowang02/agent-session-cleaner/actions/workflows/ci.yml"><img src="https://github.com/haowang02/agent-session-cleaner/actions/workflows/ci.yml/badge.svg" alt="CI 状态"></a>
-    <img src="https://img.shields.io/badge/platforms-macOS%20%7C%20Linux-blue" alt="支持 macOS 和 Linux">
+    <img src="https://img.shields.io/badge/platforms-macOS%20%7C%20Linux%20%7C%20Windows-blue" alt="支持 macOS、Linux 和 Windows">
     <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT 许可证"></a>
   </p>
   <p><a href="./README.md">English</a> · <strong>简体中文</strong></p>
@@ -19,6 +19,14 @@
 ```bash
 curl -LsSf https://raw.githubusercontent.com/haowang02/agent-session-cleaner/main/install.sh | sh
 ```
+
+在 Windows PowerShell 中安装或更新：
+
+```powershell
+powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/haowang02/agent-session-cleaner/main/install.ps1 | iex"
+```
+
+Windows 安装脚本会将程序安装到 `%LOCALAPPDATA%\Programs\agent-session-cleaner\bin`，并把该目录加入用户 `PATH`。首次安装后请打开一个新终端。
 
 ## 使用
 
@@ -36,7 +44,7 @@ asc opencode
 asc pi
 ```
 
-默认情况下，Codex 使用 `$CODEX_HOME` 或 `~/.codex`，Claude Code 使用 `$CLAUDE_CONFIG_DIR` 或 `~/.claude`，OpenCode 使用 `$XDG_DATA_HOME/opencode` 或 `~/.local/share/opencode`，Pi 使用 `$PI_CODING_AGENT_DIR` 或 `~/.pi/agent`。如需明确指定其他目录：
+默认情况下，Codex 使用 `$CODEX_HOME` 或 `~/.codex`，Claude Code 使用 `$CLAUDE_CONFIG_DIR` 或 `~/.claude`，OpenCode 使用 `$XDG_DATA_HOME/opencode` 或 `~/.local/share/opencode`，Pi 使用 `$PI_CODING_AGENT_DIR` 或 `~/.pi/agent`。在 Windows 上，`~` 表示当前用户的配置文件目录。如需明确指定其他目录：
 
 ```bash
 asc --codex-home /path/to/codex
@@ -57,6 +65,8 @@ OpenCode 路径必须指向名为 `opencode` 的数据目录本身，而不是�
 ASC_LANG=en asc
 ASC_LANG=zh-CN asc
 ```
+
+在 PowerShell 中，可先执行 `$env:ASC_LANG = "zh-CN"`，再运行 `asc`。
 
 ## 快捷键
 

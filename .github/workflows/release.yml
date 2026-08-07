@@ -1,6 +1,6 @@
 name: Release
 
-# A v-prefixed tag builds all four binaries and publishes a GitHub Release.
+# A v-prefixed tag builds all six binaries and publishes a GitHub Release.
 # A manual run builds without publishing, which makes it useful as a dry run.
 on:
   push:
@@ -59,9 +59,44 @@ jobs:
             exit 1
           fi
 
+  check-windows:
+    name: Check Windows
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Windows installer syntax
+        shell: powershell
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path ./install.ps1), [ref]$tokens, [ref]$errors
+          ) | Out-Null
+          if ($errors.Count) {
+            $errors | ForEach-Object { Write-Error $_ }
+            exit 1
+          }
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Staticcheck
+        run: go tool staticcheck ./...
+
+      - name: Test
+        run: go test ./...
+
   build:
     name: Build
-    needs: check
+    needs: [check, check-windows]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -86,11 +121,11 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist stage
-          for target in darwin/arm64 darwin/amd64 linux/amd64 linux/arm64; do
+          for target in darwin/arm64 darwin/amd64 linux/amd64 linux/arm64 windows/amd64 windows/arm64; do
             os="${target%/*}"
             arch="${target#*/}"
             case "$os/$arch" in
-              darwin/amd64|linux/amd64) label="x86_64" ;;
+              darwin/amd64|linux/amd64|windows/amd64) label="x86_64" ;;
               *)                        label="$arch" ;;
             esac
             case "$os" in
@@ -100,18 +135,23 @@ jobs:
 
             name="agent-session-cleaner-$platform-$label"
             mkdir -p "stage/$name"
+            executable="agent-session-cleaner"
+            [ "$os" != windows ] || executable="$executable.exe"
             GOOS="$os" GOARCH="$arch" go build \
               -trimpath -ldflags "-s -w" \
-              -o "stage/$name/agent-session-cleaner" ./cmd/agent-session-cleaner
+              -o "stage/$name/$executable" ./cmd/agent-session-cleaner
 
             # The executable and nothing else, unpacking into the working
-            # directory rather than into a directory of its own: the whole
-            # install is one command and leaves one file behind. gzip -9
-            # because the extra pass is free next to a network round trip.
-            tar -C "stage/$name" -cf - agent-session-cleaner \
-              | gzip -9 > "dist/$name.tar.gz"
+            # directory rather than into a directory of its own. Windows uses
+            # zip so PowerShell can unpack it without another dependency.
+            if [ "$os" = windows ]; then
+              (cd "stage/$name" && zip -9 "../../dist/$name.zip" "$executable")
+            else
+              tar -C "stage/$name" -cf - "$executable" \
+                | gzip -9 > "dist/$name.tar.gz"
+            fi
           done
-          file stage/*/agent-session-cleaner
+          file stage/*/*
           ls -lh dist
 
       # Test what is actually published, unpacked the way a reader of the
@@ -132,13 +172,37 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: binaries
-          path: dist/agent-session-cleaner-*.tar.gz
+          path: |
+            dist/agent-session-cleaner-*.tar.gz
+            dist/agent-session-cleaner-*.zip
           if-no-files-found: error
+
+  smoke-windows:
+    name: Smoke test Windows archive
+    needs: build
+    runs-on: windows-2025
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          name: binaries
+
+      - name: Smoke-test the published archive
+        shell: powershell
+        run: |
+          Expand-Archive -LiteralPath dist/agent-session-cleaner-windows-x86_64.zip -DestinationPath check
+          $files = @(Get-ChildItem -LiteralPath check -File -Recurse)
+          $check = (Resolve-Path check).Path
+          $expected = Join-Path $check "agent-session-cleaner.exe"
+          if ($files.Count -ne 1 -or $files[0].FullName -ine $expected) {
+            throw "the archive does not contain exactly one agent-session-cleaner.exe"
+          }
+          & $files[0].FullName --version
 
   release:
     name: Publish release
     if: github.ref_type == 'tag'
-    needs: build
+    needs: [build, smoke-windows]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -156,7 +220,7 @@ jobs:
         run: |
           set -euo pipefail
           cd dist
-          sha256sum agent-session-cleaner-*.tar.gz > checksums.txt
+          sha256sum agent-session-cleaner-*.tar.gz agent-session-cleaner-*.zip > checksums.txt
           cat checksums.txt
 
       - name: Prepare release notes

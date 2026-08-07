@@ -62,7 +62,7 @@ func TestCopyResultsCannotOverwriteNewerState(t *testing.T) {
 	m.copyStop = func() { cancelled = true }
 	press(t, m, "y")
 	if !cancelled {
-		t.Error("a rejected copy did not cancel the older clipboard helper")
+		t.Error("a rejected copy did not cancel the older clipboard request")
 	}
 	if m.status.text != wantStatus {
 		t.Fatalf("status = %q, want %q", m.status.text, wantStatus)

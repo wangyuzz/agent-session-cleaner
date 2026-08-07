@@ -122,6 +122,7 @@ func TestParseExpandsHome(t *testing.T) {
 	// Not parallel: the home directory is read from the environment.
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 
 	opts, err := parse([]string{"--codex-home", "~/.codex"})
 	if err != nil {

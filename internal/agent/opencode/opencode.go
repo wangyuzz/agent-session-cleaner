@@ -146,7 +146,7 @@ func (a *Agent) Meta() agent.Meta {
 // directory by any other name can be read, but a delete command built from it
 // would name a sibling directory instead, which is a different session tree.
 func (a *Agent) Preflight() error {
-	if filepath.Base(a.home) != DataDirName {
+	if !dataDirName(filepath.Base(a.home)) {
 		return i18n.Wrap(agent.ErrUnusableHome, i18n.OpenCodeHomeNotDataDir, i18n.Args{
 			"agent": Label, "path": a.home,
 		})

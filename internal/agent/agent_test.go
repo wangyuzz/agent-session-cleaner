@@ -62,18 +62,24 @@ func TestExpandHome(t *testing.T) {
 	// Not parallel: the home directory is read from the environment.
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 
 	if got := agent.ExpandHome("~/.codex"); got != filepath.Join(home, ".codex") {
 		t.Errorf("ExpandHome(~/.codex) = %q", got)
 	}
+	if got := agent.ExpandHome(`~\.codex`); got != filepath.Join(home, ".codex") {
+		t.Errorf(`ExpandHome(~\.codex) = %q`, got)
+	}
 	// A tilde in the middle of a path is just a character.
-	if got := agent.ExpandHome("/tmp/~/x"); got != "/tmp/~/x" {
+	middle := filepath.Join(home, "~", "x")
+	if got := agent.ExpandHome(middle); got != middle {
 		t.Errorf("ExpandHome() rewrote a path it should not have: %q", got)
 	}
-	if got := agent.UnderHome(filepath.Join(home, ".codex")); got != "~/.codex" {
+	if got := agent.UnderHome(filepath.Join(home, ".codex")); got != filepath.Join("~", ".codex") {
 		t.Errorf("UnderHome() = %q", got)
 	}
-	if got := agent.UnderHome("/etc/hosts"); got != "/etc/hosts" {
+	outside := filepath.Join(filepath.Dir(home), "somewhere-else", "hosts")
+	if got := agent.UnderHome(outside); got != outside {
 		t.Errorf("UnderHome() = %q", got)
 	}
 	// A lexical prefix is not a directory boundary: /home/me-too is not under

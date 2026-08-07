@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/url"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -18,8 +19,7 @@ import (
 // its own event log alongside these tables, and reconstructing that by hand is
 // not something a session browser should attempt.
 func open(path string) (*sql.DB, error) {
-	dsn := url.URL{Scheme: "file", Path: path, RawQuery: "mode=ro"}
-	db, err := sql.Open("sqlite", dsn.String())
+	db, err := sql.Open("sqlite", databaseDSN(path))
 	if err != nil {
 		return nil, err
 	}
@@ -27,6 +27,16 @@ func open(path string) (*sql.DB, error) {
 	// only adds contention with whatever OpenCode itself is doing.
 	db.SetMaxOpenConns(1)
 	return db, nil
+}
+
+func databaseDSN(path string) string {
+	uriPath := filepath.ToSlash(path)
+	volume := filepath.VolumeName(path)
+	if len(volume) == 2 && volume[1] == ':' && !strings.HasPrefix(uriPath, "/") {
+		uriPath = "/" + uriPath
+	}
+	dsn := url.URL{Scheme: "file", Path: uriPath, RawQuery: "mode=ro"}
+	return dsn.String()
 }
 
 // row is one record with whatever columns this database happens to have.

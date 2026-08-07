@@ -1,7 +1,8 @@
 // Package clip puts text on the system clipboard.
 //
 // Over SSH, OSC 52 lets the client terminal handle the clipboard. Elsewhere a
-// native helper is tried first because some terminals ignore that sequence.
+// platform clipboard integration is tried because some terminals ignore that
+// sequence.
 package clip
 
 import (
@@ -19,25 +20,21 @@ type helper struct {
 	args []string
 }
 
-// The first helper that exists wins.
-var helpers = []helper{
-	{name: "pbcopy"},  // macOS
-	{name: "wl-copy"}, // Wayland
-	{name: "xclip", args: []string{"-selection", "clipboard"}},
-	{name: "xsel", args: []string{"--clipboard", "--input"}},
-}
-
-// Copy puts text on the clipboard, reporting whether a native helper managed
-// it. SSH sessions always report false so the caller uses OSC 52 on the client.
-// Otherwise, false means no helper worked. The caller's context cancels helpers
+// Copy puts text on the clipboard, reporting whether a platform integration
+// managed it. SSH sessions always report false so the caller uses OSC 52 on
+// the client.
+// Otherwise, false means none worked. The caller's context cancels helpers
 // promptly when the interface exits.
 func Copy(ctx context.Context, text string) bool {
 	return copyFor(ctx, helpers, text, os.Getenv)
 }
 
 func copyFor(ctx context.Context, candidates []helper, text string, getenv func(string) string) bool {
-	if sshSession(getenv) {
+	if sshSession(getenv) || ctx.Err() != nil {
 		return false
+	}
+	if copyNative(text) {
+		return true
 	}
 	return copyWith(ctx, candidates, text)
 }

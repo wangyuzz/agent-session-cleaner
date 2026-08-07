@@ -234,8 +234,8 @@ func (m *Model) copyToClipboard(text string, copying, copied i18n.Key, args i18n
 	}
 }
 
-// supersedeCopy stops the clipboard request in flight and makes any result it
-// still returns stale.
+// supersedeCopy cancels a clipboard request when possible and makes any result
+// it still returns stale.
 func (m *Model) supersedeCopy() {
 	if m.copyStop != nil {
 		m.copyStop()
@@ -245,8 +245,8 @@ func (m *Model) supersedeCopy() {
 }
 
 func (m *Model) copiedToClipboard(msg copiedClipboardMsg) tea.Cmd {
-	// A later copy cancels an earlier helper. Its completion must not put the
-	// older value back onto the terminal clipboard or overwrite newer status.
+	// A later copy supersedes an earlier attempt. The earlier completion must
+	// not overwrite the terminal clipboard or newer status.
 	if msg.seq != m.copySeq {
 		return nil
 	}
@@ -260,7 +260,8 @@ func (m *Model) copiedToClipboard(msg copiedClipboardMsg) tea.Cmd {
 	if msg.native {
 		return nil
 	}
-	// No native helper. OSC 52 works in terminals that support it.
+	// No platform clipboard integration. OSC 52 works in terminals that
+	// support it.
 	return tea.SetClipboard(msg.text)
 }
 

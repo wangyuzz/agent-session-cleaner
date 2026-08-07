@@ -516,6 +516,7 @@ func TestDefaultHome(t *testing.T) {
 	// Not parallel: the home directory is read from the environment.
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	t.Setenv("PI_CODING_AGENT_DIR", "")
 
 	if want := filepath.Join(home, ".pi", "agent"); pi.DefaultHome() != want {

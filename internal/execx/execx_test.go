@@ -1,3 +1,5 @@
+//go:build !windows
+
 package execx_test
 
 import (

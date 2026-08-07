@@ -50,11 +50,6 @@ type Runner func(ctx context.Context, cmd Command) error
 func Run(ctx context.Context, cmd Command) error {
 	agent := i18n.Args{"agent": cmd.Label}
 
-	path, err := exec.LookPath(cmd.Name)
-	if err != nil {
-		return i18n.Wrap(ErrNotInstalled, i18n.MissingCLIModify, agent)
-	}
-
 	timeout := cmd.Timeout
 	if timeout <= 0 {
 		timeout = DefaultTimeout
@@ -63,8 +58,11 @@ func Run(ctx context.Context, cmd Command) error {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	process := exec.CommandContext(ctx, path, cmd.Args...)
-	process.Env = environ(cmd.Env)
+	process, err := newProcess(ctx, cmd.Name, cmd.Args)
+	if err != nil {
+		return i18n.Wrap(ErrNotInstalled, i18n.MissingCLIModify, agent)
+	}
+	process.Env = environ(process.Env, cmd.Env)
 	var stdout, stderr bytes.Buffer
 	process.Stdout, process.Stderr = &stdout, &stderr
 
@@ -128,13 +126,15 @@ func Complaint(raw []byte) string {
 	return lines[len(lines)-1]
 }
 
-func environ(overrides map[string]string) []string {
+func environ(base []string, overrides map[string]string) []string {
 	if len(overrides) == 0 {
-		return nil // inherit as-is
+		return base
 	}
-	env := os.Environ()
+	if base == nil {
+		base = os.Environ()
+	}
 	for name, value := range overrides {
-		env = append(env, name+"="+value)
+		base = append(base, name+"="+value)
 	}
-	return env
+	return base
 }
