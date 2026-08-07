@@ -25,10 +25,10 @@ type search struct {
 	before string
 }
 
-func (m *Model) beginSearch(direction int) {
+func (m *Model) beginSearch(direction int) tea.Cmd {
 	if len(m.rows) == 0 {
 		m.warn(i18n.SearchEmptyList)
-		return
+		return nil
 	}
 	m.search.direction = direction
 	m.search.origin = m.cursor
@@ -36,7 +36,8 @@ func (m *Model) beginSearch(direction int) {
 	m.search.active = true
 	m.search.input.SetValue("")
 	m.search.input.Focus()
-	m.resize()
+	// The search bar changes the viewport height.
+	return m.resize()
 }
 
 // searchKey drives the input bar. Everything except the two ways out goes to
@@ -44,15 +45,11 @@ func (m *Model) beginSearch(direction int) {
 func (m *Model) searchKey(msg tea.KeyPressMsg) tea.Cmd {
 	switch keyName(msg) {
 	case "esc":
-		// Abandoning a search restores both the previous query and the row the
-		// cursor came from.
 		m.search.query = m.search.before
 		m.status = statusLine{}
-		m.endSearch(true)
-		return m.showCurrent()
+		return m.endSearch(true)
 	case "enter":
-		m.endSearch(false)
-		return nil
+		return m.endSearch(false)
 	}
 
 	var cmd tea.Cmd
@@ -66,13 +63,17 @@ func (m *Model) searchKey(msg tea.KeyPressMsg) tea.Cmd {
 	return tea.Batch(cmd, m.jump(m.search.origin, m.search.direction, true))
 }
 
-func (m *Model) endSearch(restore bool) {
+func (m *Model) endSearch(restore bool) tea.Cmd {
 	m.search.active = false
 	m.search.input.Blur()
 	if restore && len(m.rows) > 0 {
 		m.setCursor(m.search.origin)
 	}
-	m.resize()
+	m.resizePanes()
+	if restore {
+		return m.showCurrent()
+	}
+	return m.renderDetail()
 }
 
 func (m *Model) repeatSearch(direction int) tea.Cmd {

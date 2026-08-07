@@ -236,6 +236,11 @@ func TestTheWholeScreenIsPainted(t *testing.T) {
 		// Wide characters cover two cells, only the first of which carries a
 		// colour, so a screen full of them must not read as full of holes.
 		"in Chinese": func(*Model) {},
+		// Chroma's full reset must not leave holes in the pane background.
+		"marked up": func(*Model) {},
+		"marked up in daylight": func(m *Model) {
+			drive(t, m, send(t, m, tea.BackgroundColorMsg{Color: lipgloss.White}))
+		},
 	}
 	for name, reach := range states {
 		t.Run(name, func(t *testing.T) {
@@ -251,6 +256,15 @@ func TestTheWholeScreenIsPainted(t *testing.T) {
 				target.talk["宽"] = []session.Message{
 					{Role: session.User, Text: "把这个项目里的宽字符都对齐"},
 				}
+			case "marked up", "marked up in daylight":
+				target = newFake(session.Session{ID: "md", Title: "a reply"})
+				target.talk["md"] = []session.Message{{
+					Role: session.Assistant,
+					Text: "## Heading\n\nSome **bold** and `code`:\n\n" +
+						"```go\nfunc main() { println(1) }\n```\n\n" +
+						"| a | b |\n|---|---|\n| 1 | 2 |\n\n" +
+						"> quoted\n\n- one\n- two\n\n[a link](https://example.com)\n",
+				}}
 			}
 			m := start(t, target)
 			reach(m)

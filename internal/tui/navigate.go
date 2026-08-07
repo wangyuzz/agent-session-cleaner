@@ -18,12 +18,16 @@ const (
 	detailMinWidth = 24
 )
 
-func (m *Model) resize() {
+func (m *Model) resize() tea.Cmd {
+	m.resizePanes()
+	return m.renderDetail()
+}
+
+func (m *Model) resizePanes() {
 	m.detail.SetWidth(m.detailWidth())
 	m.detail.SetHeight(m.bodyHeight())
 	m.search.input.SetWidth(max(1, m.width-2))
 	m.clampView()
-	m.renderDetail()
 }
 
 func (m *Model) bodyHeight() int {

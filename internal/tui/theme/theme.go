@@ -17,8 +17,10 @@ import (
 	"github.com/haowang02/agent-session-cleaner/internal/session"
 )
 
-// palette is one Tokyo Night variant, named the way the upstream theme names
+// Palette is one Tokyo Night variant, named the way the upstream theme names
 // its colours so the two can be compared.
+//
+// Hex strings also let non-Lip Gloss renderers use the same colours.
 //
 // What each accent is allowed to mean, and nothing else:
 //
@@ -33,44 +35,54 @@ import (
 // read against the background rather than on its own. Both ramps hold their
 // hue at roughly twice and four times the background's luminance: dark enough
 // to stay a background, saturated enough not to silt up into grey.
-type palette struct {
-	bg, bgDark, bgFooter        string
-	bgCursor, bgCursorIdle      string
-	bgPicked, bgPickedCursor    string
-	fg, fgDark, comment, gutter string
-	blue, cyan                  string
-	orange, yellow, green       string
-	red, redFill, onRedFill     string
+type Palette struct {
+	Bg, BgDark, BgFooter        string
+	BgCursor, BgCursorIdle      string
+	BgPicked, BgPickedCursor    string
+	Fg, FgDark, Comment, Gutter string
+	Blue, Cyan                  string
+	Orange, Yellow, Green       string
+	Red, RedFill, OnRedFill     string
+}
+
+// Colors is the palette a dark or light terminal is dressed in.
+func Colors(dark bool) Palette {
+	if dark {
+		return moon
+	}
+	return day
 }
 
 // moon and day are the two variants, kept side by side so a colour can never
 // be changed in one and forgotten in the other.
 var (
-	moon = palette{
-		bg: "#222436", bgDark: "#1e2030", bgFooter: "#1b1d2b",
-		bgCursor: "#2d3f76", bgCursorIdle: "#26314f",
-		bgPicked: "#244a2d", bgPickedCursor: "#2e6039",
-		fg: "#c8d3f5", fgDark: "#828bb8", comment: "#636da6", gutter: "#545c7e",
-		blue: "#82aaff", cyan: "#86e1fc",
-		orange: "#ff966c", yellow: "#ffc777", green: "#c3e88d",
-		red: "#ff757f", redFill: "#c53b53", onRedFill: "#ffffff",
+	moon = Palette{
+		Bg: "#222436", BgDark: "#1e2030", BgFooter: "#1b1d2b",
+		BgCursor: "#2d3f76", BgCursorIdle: "#26314f",
+		BgPicked: "#244a2d", BgPickedCursor: "#2e6039",
+		Fg: "#c8d3f5", FgDark: "#828bb8", Comment: "#636da6", Gutter: "#545c7e",
+		Blue: "#82aaff", Cyan: "#86e1fc",
+		Orange: "#ff966c", Yellow: "#ffc777", Green: "#c3e88d",
+		Red: "#ff757f", RedFill: "#c53b53", OnRedFill: "#ffffff",
 	}
-	day = palette{
-		bg: "#e1e2e7", bgDark: "#d0d5e3", bgFooter: "#c8cddd",
-		bgCursor: "#b6bfe2", bgCursorIdle: "#ccd2e8",
-		bgPicked: "#c9e3bb", bgPickedCursor: "#aed596",
-		fg: "#3760bf", fgDark: "#6172b0", comment: "#848cb5", gutter: "#a8aecb",
-		blue: "#2e7de9", cyan: "#007197",
-		orange: "#b15c00", yellow: "#8c6c3e", green: "#587539",
+	day = Palette{
+		Bg: "#e1e2e7", BgDark: "#d0d5e3", BgFooter: "#c8cddd",
+		BgCursor: "#b6bfe2", BgCursorIdle: "#ccd2e8",
+		BgPicked: "#c9e3bb", BgPickedCursor: "#aed596",
+		Fg: "#3760bf", FgDark: "#6172b0", Comment: "#848cb5", Gutter: "#a8aecb",
+		Blue: "#2e7de9", Cyan: "#007197",
+		Orange: "#b15c00", Yellow: "#8c6c3e", Green: "#587539",
 		// Deeper than Tokyo Night day's own #f52a65, which is barely legible
 		// as text on the bars this one has to be read on.
-		red: "#a4243b", redFill: "#c64343", onRedFill: "#ffffff",
+		Red: "#a4243b", RedFill: "#c64343", OnRedFill: "#ffffff",
 	}
 )
 
 // Theme is a resolved style sheet.
 type Theme struct {
 	Dark bool
+	// Colors exposes the source palette to non-Lip Gloss renderers.
+	Colors Palette
 
 	// Screen is the background everything that is not a bar sits on. Anything
 	// drawn outside a [text.Line] has to carry it explicitly.
@@ -164,42 +176,40 @@ type Theme struct {
 
 // New resolves the style sheet for a dark or light terminal.
 func New(dark bool) Theme {
-	p := day
-	if dark {
-		p = moon
-	}
+	p := Colors(dark)
 	hue := func(hex string) color.Color { return lipgloss.Color(hex) }
 
 	plain := lipgloss.NewStyle()
 	// Two bases. Anything inside a pane is drawn on the screen; anything on a
 	// bar is drawn on that bar. Foreground-only styles belong to neither and
 	// take whatever they are rendered into.
-	on := plain.Background(hue(p.bg))
-	bar := plain.Background(hue(p.bgDark))
-	foot := plain.Background(hue(p.bgFooter))
-	float := plain.Background(hue(p.bgDark))
+	on := plain.Background(hue(p.Bg))
+	bar := plain.Background(hue(p.BgDark))
+	foot := plain.Background(hue(p.BgFooter))
+	float := plain.Background(hue(p.BgDark))
 	pill := func(background string) lipgloss.Style {
-		return plain.Background(hue(background)).Foreground(hue(p.bgDark)).Bold(true)
+		return plain.Background(hue(background)).Foreground(hue(p.BgDark)).Bold(true)
 	}
 
 	return Theme{
 		Dark:   dark,
+		Colors: p,
 		Screen: on,
 
-		Text:  plain.Foreground(hue(p.fg)),
-		Muted: plain.Foreground(hue(p.fgDark)),
-		Faint: plain.Foreground(hue(p.comment)),
-		Faded: hue(p.comment),
+		Text:  plain.Foreground(hue(p.Fg)),
+		Muted: plain.Foreground(hue(p.FgDark)),
+		Faint: plain.Foreground(hue(p.Comment)),
+		Faded: hue(p.Comment),
 
-		Banner: bar.Foreground(hue(p.fg)),
+		Banner: bar.Foreground(hue(p.Fg)),
 		// One pill, three accents. Each is the light member of its pair, so
 		// they all take the same dark text and read as the same object in a
 		// different state rather than as three different things.
-		Pill:       pill(p.blue),
-		PillSelect: pill(p.green),
-		PillDanger: pill(p.red),
-		Mode:       plain.Foreground(hue(p.green)).Bold(true),
-		ModeDanger: plain.Foreground(hue(p.red)).Bold(true),
+		Pill:       pill(p.Blue),
+		PillSelect: pill(p.Green),
+		PillDanger: pill(p.Red),
+		Mode:       plain.Foreground(hue(p.Green)).Bold(true),
+		ModeDanger: plain.Foreground(hue(p.Red)).Bold(true),
 
 		// Where the cursor stands and what has been picked out are the two
 		// things read off this list continuously, so both are a fill across
@@ -208,77 +218,77 @@ func New(dark bool) Theme {
 		// two coincide on one row as the brighter green rather than as some
 		// third colour that would have to be learned. The hues are far enough
 		// apart that neither depends on being the lighter of the two.
-		RowCursor:       plain.Background(hue(p.bgCursor)),
-		RowCursorIdle:   plain.Background(hue(p.bgCursorIdle)),
-		RowPicked:       plain.Background(hue(p.bgPicked)),
-		RowPickedCursor: plain.Background(hue(p.bgPickedCursor)),
+		RowCursor:       plain.Background(hue(p.BgCursor)),
+		RowCursorIdle:   plain.Background(hue(p.BgCursorIdle)),
+		RowPicked:       plain.Background(hue(p.BgPicked)),
+		RowPickedCursor: plain.Background(hue(p.BgPickedCursor)),
 
 		// The gutter marks repeat what the fills already say, for terminals
 		// that render background colour poorly and for eyes that do not
 		// separate these hues.
-		Cursor:  plain.Foreground(hue(p.blue)).Bold(true),
-		Picked:  plain.Foreground(hue(p.green)).Bold(true),
-		Day:     plain.Foreground(hue(p.fg)),
-		Clock:   plain.Foreground(hue(p.comment)),
-		Project: plain.Foreground(hue(p.cyan)),
-		Guide:   plain.Foreground(hue(p.gutter)),
-		Client:  plain.Foreground(hue(p.fgDark)),
-		Title:   plain.Foreground(hue(p.fg)),
+		Cursor:  plain.Foreground(hue(p.Blue)).Bold(true),
+		Picked:  plain.Foreground(hue(p.Green)).Bold(true),
+		Day:     plain.Foreground(hue(p.Fg)),
+		Clock:   plain.Foreground(hue(p.Comment)),
+		Project: plain.Foreground(hue(p.Cyan)),
+		Guide:   plain.Foreground(hue(p.Gutter)),
+		Client:  plain.Foreground(hue(p.FgDark)),
+		Title:   plain.Foreground(hue(p.Fg)),
 		// Archived sessions were set aside deliberately; orphaned sub-agents
 		// were left behind by accident. Fade the one, flag the other.
-		Archived: plain.Foreground(hue(p.comment)),
-		Orphan:   plain.Foreground(hue(p.yellow)).Italic(true),
+		Archived: plain.Foreground(hue(p.Comment)),
+		Orphan:   plain.Foreground(hue(p.Yellow)).Italic(true),
 		// A background of its own, so it survives whatever row it lands on.
 		// Orange on dark is what Tokyo Night uses for the match under the
 		// cursor, and nothing else here is a filled block of it.
-		Highlight: plain.Background(hue(p.orange)).Foreground(hue(p.bgDark)),
+		Highlight: plain.Background(hue(p.Orange)).Foreground(hue(p.BgDark)),
 
-		DetailTitle: on.Foreground(hue(p.fg)).Bold(true),
-		DetailMeta:  on.Foreground(hue(p.fgDark)),
-		ArchivedTag: on.Foreground(hue(p.yellow)).Bold(true),
-		OrphanTag:   on.Foreground(hue(p.yellow)),
-		UserTag:     on.Foreground(hue(p.green)).Bold(true),
-		AgentTag:    on.Foreground(hue(p.blue)).Bold(true),
-		UserBar:     on.Foreground(hue(p.green)),
-		AgentBar:    on.Foreground(hue(p.blue)),
-		Body:        on.Foreground(hue(p.fg)),
-		Truncated:   on.Foreground(hue(p.comment)).Italic(true),
-		Placeholder: on.Foreground(hue(p.comment)),
+		DetailTitle: on.Foreground(hue(p.Fg)).Bold(true),
+		DetailMeta:  on.Foreground(hue(p.FgDark)),
+		ArchivedTag: on.Foreground(hue(p.Yellow)).Bold(true),
+		OrphanTag:   on.Foreground(hue(p.Yellow)),
+		UserTag:     on.Foreground(hue(p.Green)).Bold(true),
+		AgentTag:    on.Foreground(hue(p.Blue)).Bold(true),
+		UserBar:     on.Foreground(hue(p.Green)),
+		AgentBar:    on.Foreground(hue(p.Blue)),
+		Body:        on.Foreground(hue(p.Fg)),
+		Truncated:   on.Foreground(hue(p.Comment)).Italic(true),
+		Placeholder: on.Foreground(hue(p.Comment)),
 
 		// The bar stays the colour every other bar is; only the words on it
 		// change. A status line that repaints itself green and red is louder
 		// than the message it carries, and it is the line that changes most.
-		Status:       bar.Foreground(hue(p.fgDark)),
-		StatusOK:     bar.Foreground(hue(p.green)),
-		StatusError:  bar.Foreground(hue(p.red)).Bold(true),
-		Divider:      on.Foreground(hue(p.gutter)),
-		DividerFocus: on.Foreground(hue(p.blue)),
+		Status:       bar.Foreground(hue(p.FgDark)),
+		StatusOK:     bar.Foreground(hue(p.Green)),
+		StatusError:  bar.Foreground(hue(p.Red)).Bold(true),
+		Divider:      on.Foreground(hue(p.Gutter)),
+		DividerFocus: on.Foreground(hue(p.Blue)),
 
-		SearchBar: bar.Foreground(hue(p.fg)),
-		Sigil:     bar.Foreground(hue(p.blue)).Bold(true),
+		SearchBar: bar.Foreground(hue(p.Fg)),
+		Sigil:     bar.Foreground(hue(p.Blue)).Bold(true),
 
 		// Orange keys against muted descriptions, the way LazyVim's own
 		// dashboard puts its shortcuts.
-		Footer:  foot.Foreground(hue(p.fgDark)),
-		Key:     foot.Foreground(hue(p.orange)).Bold(true),
-		KeyDesc: foot.Foreground(hue(p.fgDark)),
+		Footer:  foot.Foreground(hue(p.FgDark)),
+		Key:     foot.Foreground(hue(p.Orange)).Bold(true),
+		KeyDesc: foot.Foreground(hue(p.FgDark)),
 
 		Float:        float,
-		Modal:        float.Border(lipgloss.RoundedBorder()).BorderForeground(hue(p.blue)).BorderBackground(hue(p.bgDark)).Padding(1, 2),
-		ModalDanger:  float.Border(lipgloss.RoundedBorder()).BorderForeground(hue(p.red)).BorderBackground(hue(p.bgDark)).Padding(1, 2),
-		ModalTitle:   plain.Foreground(hue(p.red)).Bold(true),
-		ModalWarning: plain.Foreground(hue(p.fgDark)),
-		Button:       float.Foreground(hue(p.fgDark)).Padding(0, 2),
-		ButtonFocus:  plain.Background(hue(p.blue)).Foreground(hue(p.bgDark)).Bold(true).Padding(0, 2),
+		Modal:        float.Border(lipgloss.RoundedBorder()).BorderForeground(hue(p.Blue)).BorderBackground(hue(p.BgDark)).Padding(1, 2),
+		ModalDanger:  float.Border(lipgloss.RoundedBorder()).BorderForeground(hue(p.Red)).BorderBackground(hue(p.BgDark)).Padding(1, 2),
+		ModalTitle:   plain.Foreground(hue(p.Red)).Bold(true),
+		ModalWarning: plain.Foreground(hue(p.FgDark)),
+		Button:       float.Foreground(hue(p.FgDark)).Padding(0, 2),
+		ButtonFocus:  plain.Background(hue(p.Blue)).Foreground(hue(p.BgDark)).Bold(true).Padding(0, 2),
 		// The deeper red, not the bright one the text uses: a whole filled
 		// button in signal red shouts over the question it is answering.
-		ButtonDanger: plain.Background(hue(p.redFill)).Foreground(hue(p.onRedFill)).Bold(true).Padding(0, 2),
+		ButtonDanger: plain.Background(hue(p.RedFill)).Foreground(hue(p.OnRedFill)).Bold(true).Padding(0, 2),
 
-		Logo:       plain.Foreground(hue(p.blue)),
-		LogoShadow: plain.Foreground(hue(p.gutter)),
-		Shortcut:   plain.Foreground(hue(p.orange)),
-		Spark:      plain.Foreground(hue(p.yellow)),
-		Count:      plain.Foreground(hue(p.cyan)),
+		Logo:       plain.Foreground(hue(p.Blue)),
+		LogoShadow: plain.Foreground(hue(p.Gutter)),
+		Shortcut:   plain.Foreground(hue(p.Orange)),
+		Spark:      plain.Foreground(hue(p.Yellow)),
+		Count:      plain.Foreground(hue(p.Cyan)),
 	}
 }
 

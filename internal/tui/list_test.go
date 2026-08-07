@@ -264,7 +264,9 @@ func TestBannerLeavesOutEmptyCounts(t *testing.T) {
 func TestEmptyListing(t *testing.T) {
 	t.Parallel()
 
-	m := start(t, newFake())
+	m := New(t.Context(), newFake(), i18n.New(i18n.English))
+	drive(t, m, send(t, m, tea.WindowSizeMsg{Width: 120, Height: 30}))
+	drive(t, m, m.Init())
 	contains(t, m, "No sessions found.")
 }
 

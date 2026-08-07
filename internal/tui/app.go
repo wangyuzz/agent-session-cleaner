@@ -64,15 +64,17 @@ type Model struct {
 	focus focusTarget
 	// clicked remembers the last row a click landed on, so a second click on
 	// it reads as "this one" and picks it, the way Space does.
-	clicked  int
-	detail   viewport.Model
-	messages map[cacheKey][]session.Message
-	order    []cacheKey // insertion order, for evicting the oldest
-	pending  map[cacheKey]bool
-	showing  cacheKey // the conversation the detail pane currently holds
-	loading  bool
-	copySeq  uint64
-	copyStop context.CancelFunc
+	clicked   int
+	detail    viewport.Model
+	messages  map[cacheKey][]session.Message
+	order     []cacheKey // insertion order, for evicting the oldest
+	pending   map[cacheKey]bool
+	showing   cacheKey // the conversation the detail pane currently holds
+	loading   bool
+	renders   renderCache
+	rendering *bodyKey
+	copySeq   uint64
+	copyStop  context.CancelFunc
 
 	search search
 	status statusLine
@@ -121,6 +123,10 @@ func New(ctx context.Context, target agent.Agent, print *i18n.Printer) *Model {
 // input draws itself, so it has to be handed the bar it sits on rather than
 // leaving a gap in the middle of it.
 func (m *Model) restyle(dark bool) {
+	if m.theme.Dark != dark {
+		// Rendered lines contain the previous palette's ANSI colours.
+		m.renders.clear()
+	}
 	m.theme = theme.New(dark)
 	styles := textinput.DefaultStyles(dark)
 	for _, state := range []*textinput.StyleState{&styles.Focused, &styles.Blurred} {
@@ -154,20 +160,20 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
-		m.resize()
-		return m, nil
+		return m, m.resize()
 
 	case tea.BackgroundColorMsg:
 		m.restyle(msg.IsDark())
-		m.renderDetail()
-		return m, nil
+		return m, m.renderDetail()
 
 	case loadedMsg:
 		return m, m.loaded(msg)
 
 	case messagesMsg:
-		m.receive(msg)
-		return m, nil
+		return m, m.receive(msg)
+
+	case renderedMsg:
+		return m, m.rendered(msg)
 
 	case opUpdate:
 		return m, m.progressed(msg)
@@ -245,13 +251,13 @@ func (m *Model) command(a action) tea.Cmd {
 	case quitAction:
 		return m.quit()
 	case searchAction:
-		m.beginSearch(1)
+		return m.beginSearch(1)
 	case searchBackAction:
-		m.beginSearch(-1)
+		return m.beginSearch(-1)
 	case nextMatchAction:
-		m.repeatSearch(m.search.direction)
+		return m.repeatSearch(m.search.direction)
 	case prevMatchAction:
-		m.repeatSearch(-m.search.direction)
+		return m.repeatSearch(-m.search.direction)
 	case pickAction:
 		m.pick()
 		return nil

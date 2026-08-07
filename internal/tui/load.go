@@ -111,60 +111,62 @@ func (m *Model) showCurrent() tea.Cmd {
 	current, ok := m.current()
 	if !ok {
 		m.showing = cacheKey{}
-		m.detail.SetContent("")
-		return nil
+		m.loading = false
+		m.detail.GotoTop()
+		return m.renderDetail()
 	}
 
 	key := keyOf(current)
 	if _, held := m.messages[key]; held {
 		m.showing = key
 		m.loading = false
-		m.renderDetail()
 		m.detail.GotoTop()
-		return nil
+		return m.renderDetail()
 	}
 
 	m.showing = key
 	m.loading = true
-	m.renderDetail()
 	m.detail.GotoTop()
+	render := m.renderDetail()
 	if m.pending[key] {
-		return nil
+		return render
 	}
 	m.pending[key] = true
 
 	target, ctx := m.agent, m.ctx
-	return func() tea.Msg {
+	return tea.Batch(render, func() tea.Msg {
 		found, err := target.Messages(ctx, current)
 		return messagesMsg{key: key, messages: found, err: err}
-	}
+	})
 }
 
-func (m *Model) receive(msg messagesMsg) {
+func (m *Model) receive(msg messagesMsg) tea.Cmd {
 	delete(m.pending, msg.key)
 	if msg.err != nil {
 		if msg.key == m.showing {
 			m.loading = false
 			m.status = statusLine{tone: toneError, text: m.print.Err(msg.err)}
-			m.renderDetail()
+			return m.renderDetail()
 		}
-		return
+		return nil
 	}
 
 	m.remember(msg.key, msg.messages)
 	// The cursor may have moved on while this was being read.
 	if msg.key != m.showing {
-		return
+		return nil
 	}
 	m.loading = false
-	m.renderDetail()
 	m.detail.GotoTop()
+	return m.renderDetail()
 }
 
 func (m *Model) remember(key cacheKey, messages []session.Message) {
 	if _, held := m.messages[key]; !held {
 		if len(m.order) >= detailCacheLimit {
-			delete(m.messages, m.order[0])
+			dropped := m.order[0]
+			delete(m.messages, dropped)
+			m.renders.remove(dropped)
 			m.order = m.order[1:]
 		}
 		m.order = append(m.order, key)
