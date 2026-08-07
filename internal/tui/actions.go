@@ -14,10 +14,12 @@ import (
 // the rest into a count.
 const bulkPreviewLimit = 6
 
-type copiedSessionIDMsg struct {
-	sessionID string
-	native    bool
-	seq       uint64
+type copiedClipboardMsg struct {
+	text   string
+	status i18n.Key
+	args   i18n.Args
+	native bool
+	seq    uint64
 }
 
 func (m *Model) archive() tea.Cmd {
@@ -186,28 +188,65 @@ func (m *Model) cascadeNote(extra int) string {
 func (m *Model) copySessionID() tea.Cmd {
 	current, ok := m.current()
 	if !ok {
+		m.supersedeCopy()
 		m.warn(i18n.NoCurrentSession)
 		return nil
 	}
-	sessionID := current.ID
+	return m.copyToClipboard(
+		current.ID,
+		i18n.CopyingSessionID,
+		i18n.CopySessionIDSuccess,
+		i18n.Args{"session_id": current.ID},
+	)
+}
 
-	m.say(i18n.CopyingSessionID)
-	if m.copyStop != nil {
-		m.copyStop()
+func (m *Model) copyWorkingDirectory() tea.Cmd {
+	current, ok := m.current()
+	if !ok {
+		m.supersedeCopy()
+		m.warn(i18n.NoCurrentSession)
+		return nil
 	}
-	m.copySeq++
+	if current.Cwd == "" {
+		m.supersedeCopy()
+		m.warn(i18n.CwdUnknown)
+		return nil
+	}
+	return m.copyToClipboard(
+		current.Cwd,
+		i18n.CopyingCwd,
+		i18n.CopyCwdSuccess,
+		i18n.Args{"cwd": current.Cwd},
+	)
+}
+
+func (m *Model) copyToClipboard(text string, copying, copied i18n.Key, args i18n.Args) tea.Cmd {
+	m.say(copying)
+	m.supersedeCopy()
 	seq := m.copySeq
 	ctx, cancel := context.WithCancel(m.ctx)
 	m.copyStop = cancel
 	return func() tea.Msg {
-		return copiedSessionIDMsg{sessionID: sessionID, native: clip.Copy(ctx, sessionID), seq: seq}
+		return copiedClipboardMsg{
+			text: text, status: copied, args: args,
+			native: clip.Copy(ctx, text), seq: seq,
+		}
 	}
 }
 
-func (m *Model) copiedSessionID(msg copiedSessionIDMsg) tea.Cmd {
+// supersedeCopy stops the clipboard request in flight and makes any result it
+// still returns stale.
+func (m *Model) supersedeCopy() {
+	if m.copyStop != nil {
+		m.copyStop()
+		m.copyStop = nil
+	}
+	m.copySeq++
+}
+
+func (m *Model) copiedToClipboard(msg copiedClipboardMsg) tea.Cmd {
 	// A later copy cancels an earlier helper. Its completion must not put the
-	// older session ID back onto the terminal clipboard or overwrite newer
-	// status.
+	// older value back onto the terminal clipboard or overwrite newer status.
 	if msg.seq != m.copySeq {
 		return nil
 	}
@@ -216,13 +255,13 @@ func (m *Model) copiedSessionID(msg copiedSessionIDMsg) tea.Cmd {
 		m.copyStop = nil
 	}
 	if !m.busy && !m.refreshing {
-		m.report(i18n.CopySessionIDSuccess, i18n.Args{"session_id": msg.sessionID})
+		m.report(msg.status, msg.args)
 	}
 	if msg.native {
 		return nil
 	}
 	// No native helper. OSC 52 works in terminals that support it.
-	return tea.SetClipboard(msg.sessionID)
+	return tea.SetClipboard(msg.text)
 }
 
 func (m *Model) progressed(update opUpdate) tea.Cmd {

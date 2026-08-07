@@ -54,13 +54,15 @@ func TestFooterRenamesKeysForTheSelection(t *testing.T) {
 	m := start(t, &archivingFake{newFake(tree()...)})
 	contains(t, m, "d Delete")
 	contains(t, m, "c Copy session ID")
+	contains(t, m, "y Copy working directory")
 
 	press(t, m, "space")
 	contains(t, m, "d Delete selected")
 	contains(t, m, "a Archive selected")
-	// Copying the ID acts on the row under the cursor, which is no longer what
-	// the keys are about; the sweeps act on a different set from the one on screen.
+	// Copying acts on the row under the cursor, which is no longer what the keys
+	// are about; the sweeps act on a different set from the one on screen.
 	omits(t, m, "c Copy session ID")
+	omits(t, m, "y Copy working directory")
 	omits(t, m, "D Delete archived")
 	omits(t, m, "! Danger mode")
 }

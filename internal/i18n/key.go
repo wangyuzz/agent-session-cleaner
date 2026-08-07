@@ -43,6 +43,7 @@ const (
 	BindingUnarchive
 	BindingDelete
 	BindingCopySessionID
+	BindingCopyCwd
 	BindingDeleteArchived
 	BindingDeleteEmpty
 	BindingDeleteOrphans
@@ -72,6 +73,7 @@ const (
 	HelpManage
 	HelpSelectToggle
 	HelpCopySessionID
+	HelpCopyCwd
 	HelpDelete
 	HelpArchive
 	HelpUnarchive
@@ -157,6 +159,8 @@ const (
 	DangerOff
 	CopyingSessionID
 	CopySessionIDSuccess
+	CopyingCwd
+	CopyCwdSuccess
 	MissingCLIBrowse
 	MissingCLIModify
 	UnexpectedError

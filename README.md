@@ -72,6 +72,7 @@ The footer shows the shortcuts available for the current agent and installation.
 | `?` | Search backward | All agents |
 | `n` / `N` | Jump to the next / previous match | All agents |
 | `c` | Copy the current session ID | All agents |
+| `y` | Copy the current session's working directory | All agents |
 | `d` | Delete the current session or selected sessions | All agents |
 | `a` | Archive the current session or selected sessions | Codex only |
 | `u` | Unarchive the current session or selected sessions | Codex only |

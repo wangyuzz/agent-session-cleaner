@@ -180,8 +180,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case opUpdate:
 		return m, m.progressed(msg)
 
-	case copiedSessionIDMsg:
-		return m, m.copiedSessionID(msg)
+	case copiedClipboardMsg:
+		return m, m.copiedToClipboard(msg)
 
 	case tea.KeyPressMsg:
 		return m, m.press(msg)
@@ -265,6 +265,8 @@ func (m *Model) command(a action) tea.Cmd {
 		return nil
 	case copySessionIDAction:
 		return m.copySessionID()
+	case copyWorkingDirectoryAction:
+		return m.copyWorkingDirectory()
 	case archiveAction:
 		return m.archive()
 	case unarchiveAction:

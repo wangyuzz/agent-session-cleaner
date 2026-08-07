@@ -92,6 +92,7 @@ func TestHelpAndFooterAgree(t *testing.T) {
 		{dangerAction, i18n.HelpDanger},
 		{deleteAction, i18n.HelpDelete},
 		{copySessionIDAction, i18n.HelpCopySessionID},
+		{copyWorkingDirectoryAction, i18n.HelpCopyCwd},
 	}
 
 	for _, test := range cases {

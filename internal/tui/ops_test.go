@@ -219,8 +219,9 @@ func TestWritingKeysVanishWithoutTheAgentsCommand(t *testing.T) {
 	omits(t, m, "d Delete")
 	omits(t, m, "␣ Select sessions")
 	omits(t, m, "! Danger mode")
-	// Browsing still works, and copying a session ID needs no agent CLI.
+	// Browsing and copying session metadata need no agent CLI.
 	contains(t, m, "c Copy session ID")
+	contains(t, m, "y Copy working directory")
 	contains(t, m, "/ Search")
 }
 
