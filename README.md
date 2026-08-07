@@ -117,7 +117,7 @@ pi --session <session-id>
 - Codex archive, unarchive, and delete operations are delegated to the Codex CLI.
 - Claude Code deletion removes the transcript and its related session data directly.
 - OpenCode deletion is delegated to the OpenCode CLI.
-- Pi deletion removes the session file directly; Pi has no archive and no non-interactive delete command.
+- Pi deletion removes the session file directly.
 - In danger mode (`!`), individual deletions skip confirmation. Bulk deletion still asks for confirmation.
 
 ## Acknowledgements
