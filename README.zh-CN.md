@@ -20,11 +20,13 @@
 curl -LsSf https://raw.githubusercontent.com/wangyuzz/agent-session-cleaner/main/install.sh | sh
 ```
 
-在 Windows PowerShell 中安装或更新：
+在已经打开的 Windows PowerShell 5.1 或 PowerShell 7 窗口中安装或更新：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/wangyuzz/agent-session-cleaner/main/install.ps1 | iex"
+irm https://raw.githubusercontent.com/wangyuzz/agent-session-cleaner/main/install.ps1 | iex
 ```
+
+以上命令会直接使用当前窗口的 PowerShell。若要从命令提示符或其他启动器中调用，请用 `powershell -NoProfile -ExecutionPolicy Bypass -Command "..."` 启动系统自带的 Windows PowerShell 5.1，或用 `pwsh -NoProfile -Command "..."` 启动 PowerShell 7。
 
 Windows 安装脚本会将程序安装到 `%LOCALAPPDATA%\Programs\agent-session-cleaner\bin`，并把该目录加入用户 `PATH`。首次安装后请打开一个新终端。
 

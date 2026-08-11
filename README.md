@@ -20,11 +20,13 @@ Install or update on macOS and Linux:
 curl -LsSf https://raw.githubusercontent.com/wangyuzz/agent-session-cleaner/main/install.sh | sh
 ```
 
-Install or update on Windows from PowerShell:
+Install or update from an open Windows PowerShell 5.1 or PowerShell 7 window:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/wangyuzz/agent-session-cleaner/main/install.ps1 | iex"
+irm https://raw.githubusercontent.com/wangyuzz/agent-session-cleaner/main/install.ps1 | iex
 ```
+
+This runs in the PowerShell version that is already open. When invoking it from Command Prompt or another launcher, use `powershell -NoProfile -ExecutionPolicy Bypass -Command "..."` for the built-in Windows PowerShell 5.1, or `pwsh -NoProfile -Command "..."` for PowerShell 7.
 
 The Windows installer adds `%LOCALAPPDATA%\Programs\agent-session-cleaner\bin` to your user `PATH`. Open a new terminal after the first install.
 
