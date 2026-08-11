@@ -118,7 +118,12 @@ func (f *archivingFake) Unarchive(_ context.Context, s session.Session) error {
 // begins where a user would.
 func start(t *testing.T, target agent.Agent) *Model {
 	t.Helper()
-	m := New(t.Context(), target, i18n.New(i18n.English))
+	return startWithPrinter(t, target, i18n.New(i18n.English))
+}
+
+func startWithPrinter(t *testing.T, target agent.Agent, print *i18n.Printer) *Model {
+	t.Helper()
+	m := New(t.Context(), target, print)
 	drive(t, m, m.Init())
 	drive(t, m, send(t, m, tea.WindowSizeMsg{Width: 120, Height: 30}))
 	return m
@@ -184,6 +189,26 @@ func keyPress(name string) tea.KeyPressMsg {
 		return tea.KeyPressMsg{Code: tea.KeyUp}
 	case "down":
 		return tea.KeyPressMsg{Code: tea.KeyDown}
+	case "delete":
+		return tea.KeyPressMsg{Code: tea.KeyDelete}
+	case "home":
+		return tea.KeyPressMsg{Code: tea.KeyHome}
+	case "end":
+		return tea.KeyPressMsg{Code: tea.KeyEnd}
+	case "f1":
+		return tea.KeyPressMsg{Code: tea.KeyF1}
+	case "f3":
+		return tea.KeyPressMsg{Code: tea.KeyF3}
+	case "shift+f3":
+		return tea.KeyPressMsg{Code: tea.KeyF3, Mod: tea.ModShift}
+	case "f5":
+		return tea.KeyPressMsg{Code: tea.KeyF5}
+	case "ctrl+c":
+		return tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}
+	case "ctrl+f":
+		return tea.KeyPressMsg{Code: 'f', Mod: tea.ModCtrl}
+	case "alt+c":
+		return tea.KeyPressMsg{Code: 'c', Mod: tea.ModAlt}
 	}
 	runes := []rune(name)
 	key := tea.KeyPressMsg{Code: runes[0], Text: name}
@@ -223,6 +248,28 @@ func omits(t *testing.T, m *Model, unwanted string) {
 	if strings.Contains(screen(m), unwanted) {
 		t.Errorf("the screen mentions %q and should not:\n%s", unwanted, screen(m))
 	}
+}
+
+func bindingText(m *Model, action action) string {
+	binding, ok := m.binding(action)
+	if !ok {
+		return ""
+	}
+	display := binding.display
+	if display == "" {
+		display = keyLabel(binding.keys[0])
+	}
+	return display + " " + m.describe(binding, !m.picked.Empty())
+}
+
+func containsBinding(t *testing.T, m *Model, action action) {
+	t.Helper()
+	contains(t, m, bindingText(m, action))
+}
+
+func omitsBinding(t *testing.T, m *Model, action action) {
+	t.Helper()
+	omits(t, m, bindingText(m, action))
 }
 
 // titles lists what is picked out, in display order.

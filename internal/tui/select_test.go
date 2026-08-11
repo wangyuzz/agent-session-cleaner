@@ -52,19 +52,19 @@ func TestFooterRenamesKeysForTheSelection(t *testing.T) {
 	t.Parallel()
 
 	m := start(t, &archivingFake{newFake(tree()...)})
-	contains(t, m, "d Delete")
-	contains(t, m, "c Copy session ID")
-	contains(t, m, "y Copy working directory")
+	containsBinding(t, m, deleteAction)
+	containsBinding(t, m, copySessionIDAction)
+	containsBinding(t, m, copyWorkingDirectoryAction)
 
 	press(t, m, "space")
-	contains(t, m, "d Delete selected")
-	contains(t, m, "a Archive selected")
+	containsBinding(t, m, deleteAction)
+	containsBinding(t, m, archiveAction)
 	// Copying acts on the row under the cursor, which is no longer what the keys
 	// are about; the sweeps act on a different set from the one on screen.
-	omits(t, m, "c Copy session ID")
-	omits(t, m, "y Copy working directory")
-	omits(t, m, "D Delete archived")
-	omits(t, m, "! Danger mode")
+	omitsBinding(t, m, copySessionIDAction)
+	omitsBinding(t, m, copyWorkingDirectoryAction)
+	omitsBinding(t, m, sweepArchivedAction)
+	omitsBinding(t, m, dangerAction)
 }
 
 // Esc backs out of the most alarming state first.

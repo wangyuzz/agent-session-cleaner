@@ -149,8 +149,35 @@ func TestDetect(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			lookup := func(name string) string { return test.env[name] }
-			if got := Detect(lookup); got != test.want {
+			if got := detect(lookup, func() string { return "" }); got != test.want {
 				t.Errorf("Detect() = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
+func TestDetectFallsBackToTheSystemUILanguage(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		env    map[string]string
+		system string
+		want   string
+	}{
+		{"Chinese Windows UI", nil, "zh-CN", Chinese},
+		{"English Windows UI", nil, "en-US", English},
+		{"unknown Windows UI", nil, "fr-FR", English},
+		{"override beats the Windows UI", map[string]string{LanguageEnv: "en"}, "zh-CN", English},
+		{"POSIX locale beats the Windows UI", map[string]string{"LANG": "en_US.UTF-8"}, "zh-CN", English},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			lookup := func(name string) string { return test.env[name] }
+			if got := detect(lookup, func() string { return test.system }); got != test.want {
+				t.Errorf("detect() = %q, want %q", got, test.want)
 			}
 		})
 	}

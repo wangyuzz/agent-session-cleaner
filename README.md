@@ -73,7 +73,7 @@ The equivalent environment variables are `ASC_CODEX_BIN` and `ASC_CODEX_CONCURRE
 
 ### Language
 
-The interface follows your locale (`LC_ALL`, `LC_MESSAGES`, `LANGUAGE`, or `LANG`). Chinese locales use Simplified Chinese; all other locales use English. To override detection:
+The interface follows the system language. Windows uses the user's preferred UI language; macOS and Linux use `LC_ALL`, `LC_MESSAGES`, `LANGUAGE`, or `LANG`. Chinese locales use Simplified Chinese; all other locales use English. To override detection:
 
 ```bash
 ASC_LANG=en asc
@@ -84,27 +84,28 @@ In PowerShell, use `$env:ASC_LANG = "zh-CN"` before running `asc`.
 
 ## Keyboard shortcuts
 
-The footer shows the shortcuts available for the current agent and installation. Press `h` for the complete in-app reference.
+The footer shows the shortcuts available for the current agent and installation. Windows builds show familiar Windows keys first while keeping the original letter and Vim-style keys as aliases. Press `F1` on Windows or `h` on any platform for the complete in-app reference.
 
 | Key | Action | Supported by |
 |---|---|---|
 | `↑` `↓` / `j` `k` | Move to the previous / next session | All agents |
-| `g` / `G` | Jump to the top / bottom of the list | All agents |
+| `Home` / `End` (Windows), `g` / `G` | Jump to the top / bottom of the list | All agents |
 | `Tab` | Switch between the session list and conversation | All agents |
 | `␣` | Select or deselect the current session | All agents |
-| `/` | Search titles, working directories, session IDs, and clients | All agents |
+| `Ctrl+F` (Windows), `/` | Search titles, working directories, session IDs, and clients | All agents |
 | `?` | Search backward | All agents |
-| `n` / `N` | Jump to the next / previous match | All agents |
+| `F3` / `Shift+F3` (Windows), `n` / `N` | Jump to the next / previous match | All agents |
+| `Alt+C` | Toggle case-sensitive search; search ignores case by default | All agents |
 | `c` | Copy the current session ID | All agents |
-| `y` | Copy the current session's working directory | All agents |
-| `d` | Delete the current session or selected sessions | All agents |
+| `w` (Windows), `y` | Copy the current session's working directory | All agents |
+| `Delete` (Windows), `d` | Delete the current session or selected sessions | All agents |
 | `a` | Archive the current session or selected sessions | Codex only |
 | `u` | Unarchive the current session or selected sessions | Codex only |
-| `D` | Delete all archived sessions | Codex only |
-| `O` | Delete all orphaned sub-agent sessions | Codex and OpenCode |
-| `E` | Delete all empty sessions | Claude Code only |
-| `r` | Refresh the session list | All agents |
-| `h` | Show keyboard shortcuts | All agents |
+| `x` (Windows), `D` | Delete all archived sessions | Codex only |
+| `o` (Windows), `O` | Delete all orphaned sub-agent sessions | Codex and OpenCode |
+| `e` (Windows), `E` | Delete all empty sessions | Claude Code only |
+| `F5` (Windows), `r` | Refresh the session list | All agents |
+| `F1` (Windows), `h` | Show keyboard shortcuts | All agents |
 | `!` | Toggle danger mode; individual deletions skip confirmation | All agents |
 | `Esc` | Exit multi-select, turn off danger mode, or clear the search | All agents |
 | `q` | Quit | All agents |

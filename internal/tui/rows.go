@@ -214,7 +214,7 @@ func (m *Model) rowLine(index int, day string, dayWidth, projectWidth, width int
 
 	line.Add(titleOf(m.print, s), shaded(m.theme.Title))
 
-	line.Highlight(m.search.query, caseSensitive(m.search.query), m.theme.Highlight)
+	line.Highlight(m.search.query, m.search.caseSensitive, m.theme.Highlight)
 	return line.Render(width)
 }
 

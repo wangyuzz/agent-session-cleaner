@@ -121,13 +121,18 @@ func expand(template string, args Args) string {
 // LanguageEnv is the variable that overrides locale detection.
 const LanguageEnv = "ASC_LANG"
 
-// Detect picks a language from the environment. Pass os.Getenv; a stub keeps
-// tests independent of the machine they run on.
+// Detect picks a language from the environment and, when no locale variable
+// exists, the operating system's native UI language. Pass os.Getenv; the
+// platform lookup stays behind nativeLocale so tests can replace it.
 //
 // An explicit override wins. Otherwise the first locale variable that is set
 // decides, even if it names a language this program does not speak — a French
 // locale means "not Chinese", and English is the better answer than guessing.
 func Detect(lookup func(string) string) string {
+	return detect(lookup, nativeLocale)
+}
+
+func detect(lookup func(string) string, systemLocale func() string) string {
 	if lang := normalize(lookup(LanguageEnv)); lang != "" {
 		return lang
 	}
@@ -138,6 +143,9 @@ func Detect(lookup func(string) string) string {
 			}
 			return English
 		}
+	}
+	if lang := normalize(systemLocale()); lang != "" {
+		return lang
 	}
 	return English
 }

@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"runtime"
+
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/haowang02/agent-session-cleaner/internal/i18n"
@@ -26,6 +28,7 @@ const (
 	sweepOrphansAction
 	dangerAction
 	searchAction
+	matchCaseAction
 	reloadAction
 	helpAction
 	quitAction
@@ -52,34 +55,73 @@ type binding struct {
 	picked i18n.Key
 }
 
-var bindings = []binding{
-	{keys: []string{"a"}, action: archiveAction, label: i18n.BindingArchive, picked: i18n.BindingArchiveSelected},
-	{keys: []string{"u"}, action: unarchiveAction, label: i18n.BindingUnarchive, picked: i18n.BindingUnarchiveSelected},
-	{keys: []string{"d"}, action: deleteAction, label: i18n.BindingDelete, picked: i18n.BindingDeleteSelected},
-	{keys: []string{"c"}, action: copySessionIDAction, label: i18n.BindingCopySessionID},
-	{keys: []string{"y"}, action: copyWorkingDirectoryAction, label: i18n.BindingCopyCwd},
-	// Shown as the open-box glyph: "space" spelled out is wider than the label
-	// it introduces, and reads as a word rather than a key.
-	{keys: []string{"space"}, display: "␣", action: pickAction, label: i18n.BindingSelect, picked: i18n.BindingSelectMore},
-	{keys: []string{"D"}, action: sweepArchivedAction, label: i18n.BindingDeleteArchived},
-	{keys: []string{"E"}, action: sweepEmptyAction, label: i18n.BindingDeleteEmpty},
-	{keys: []string{"O"}, action: sweepOrphansAction, label: i18n.BindingDeleteOrphans},
-	{keys: []string{"!"}, action: dangerAction, label: i18n.BindingDanger},
-	{keys: []string{"/"}, action: searchAction, label: i18n.BindingSearch},
-	{keys: []string{"r"}, action: reloadAction, label: i18n.BindingReload},
-	{keys: []string{"h"}, action: helpAction, label: i18n.BindingHelp},
-	{keys: []string{"q", "ctrl+c"}, action: quitAction, label: i18n.BindingQuit},
-
-	{keys: []string{"?"}, action: searchBackAction},
-	{keys: []string{"n"}, action: nextMatchAction},
-	{keys: []string{"N"}, action: prevMatchAction},
-	{keys: []string{"esc"}, action: escapeAction},
-	{keys: []string{"tab"}, action: focusAction, label: i18n.BindingFocus},
-	{keys: []string{"k", "up"}, action: upAction},
-	{keys: []string{"j", "down"}, action: downAction},
-	{keys: []string{"g"}, action: topAction},
-	{keys: []string{"G"}, action: bottomAction},
+type keyMap struct {
+	bindings []binding
 }
+
+func keyMapFor(goos string) keyMap {
+	bindings := []binding{
+		{keys: []string{"a"}, action: archiveAction, label: i18n.BindingArchive, picked: i18n.BindingArchiveSelected},
+		{keys: []string{"u"}, action: unarchiveAction, label: i18n.BindingUnarchive, picked: i18n.BindingUnarchiveSelected},
+		{keys: []string{"d"}, action: deleteAction, label: i18n.BindingDelete, picked: i18n.BindingDeleteSelected},
+		{keys: []string{"c"}, action: copySessionIDAction, label: i18n.BindingCopySessionID},
+		{keys: []string{"y"}, action: copyWorkingDirectoryAction, label: i18n.BindingCopyCwd},
+		// Shown as the open-box glyph: "space" spelled out is wider than the
+		// label it introduces, and reads as a word rather than a key.
+		{keys: []string{"space"}, display: "␣", action: pickAction, label: i18n.BindingSelect, picked: i18n.BindingSelectMore},
+		{keys: []string{"D"}, action: sweepArchivedAction, label: i18n.BindingDeleteArchived},
+		{keys: []string{"E"}, action: sweepEmptyAction, label: i18n.BindingDeleteEmpty},
+		{keys: []string{"O"}, action: sweepOrphansAction, label: i18n.BindingDeleteOrphans},
+		{keys: []string{"!"}, action: dangerAction, label: i18n.BindingDanger},
+		{keys: []string{"/"}, action: searchAction, label: i18n.BindingSearch},
+		{keys: []string{"alt+c"}, action: matchCaseAction, label: i18n.BindingMatchCase},
+		{keys: []string{"r"}, action: reloadAction, label: i18n.BindingReload},
+		{keys: []string{"h"}, action: helpAction, label: i18n.BindingHelp},
+		{keys: []string{"q", "ctrl+c"}, action: quitAction, label: i18n.BindingQuit},
+
+		{keys: []string{"?"}, action: searchBackAction},
+		{keys: []string{"n"}, action: nextMatchAction},
+		{keys: []string{"N"}, action: prevMatchAction},
+		{keys: []string{"esc"}, action: escapeAction},
+		{keys: []string{"tab"}, action: focusAction, label: i18n.BindingFocus},
+		{keys: []string{"k", "up"}, action: upAction},
+		{keys: []string{"j", "down"}, action: downAction},
+		{keys: []string{"g"}, action: topAction},
+		{keys: []string{"G"}, action: bottomAction},
+	}
+
+	if goos == "windows" {
+		// Keep every original key as an alias, while putting familiar Windows
+		// keys first so the footer teaches the platform-native route.
+		setBindingKeys(bindings, deleteAction, "delete", "d")
+		setBindingKeys(bindings, copyWorkingDirectoryAction, "w", "y")
+		setBindingKeys(bindings, sweepArchivedAction, "x", "D")
+		setBindingKeys(bindings, sweepEmptyAction, "e", "E")
+		setBindingKeys(bindings, sweepOrphansAction, "o", "O")
+		setBindingKeys(bindings, searchAction, "ctrl+f", "/")
+		setBindingKeys(bindings, reloadAction, "f5", "r")
+		setBindingKeys(bindings, helpAction, "f1", "h")
+		setBindingKeys(bindings, nextMatchAction, "f3", "n")
+		setBindingKeys(bindings, prevMatchAction, "shift+f3", "N")
+		setBindingKeys(bindings, upAction, "up", "k")
+		setBindingKeys(bindings, downAction, "down", "j")
+		setBindingKeys(bindings, topAction, "home", "g")
+		setBindingKeys(bindings, bottomAction, "end", "G")
+	}
+
+	return keyMap{bindings: bindings}
+}
+
+func setBindingKeys(bindings []binding, action action, keys ...string) {
+	for i := range bindings {
+		if bindings[i].action == action {
+			bindings[i].keys = keys
+			return
+		}
+	}
+}
+
+var defaultKeyMap = keyMapFor(runtime.GOOS)
 
 // The footer is two rows, split by what the keys are for rather than by how
 // they happen to fit: above, everything that acts on the session under the
@@ -92,7 +134,7 @@ var (
 		sweepArchivedAction, sweepEmptyAction, sweepOrphansAction, dangerAction,
 	}
 	footerBottom = []action{
-		pickAction, searchAction, reloadAction, helpAction, quitAction,
+		pickAction, searchAction, matchCaseAction, reloadAction, helpAction, quitAction,
 	}
 )
 
@@ -214,7 +256,15 @@ func (m *Model) describe(b binding, picking bool) string {
 }
 
 func (m *Model) binding(a action) (binding, bool) {
-	for _, b := range bindings {
+	keymap := m.keymap
+	if len(keymap.bindings) == 0 {
+		keymap = defaultKeyMap
+	}
+	return keymap.binding(a)
+}
+
+func (k keyMap) binding(a action) (binding, bool) {
+	for _, b := range k.bindings {
 		if b.action == a {
 			return b, true
 		}
@@ -222,8 +272,16 @@ func (m *Model) binding(a action) (binding, bool) {
 	return binding{}, false
 }
 
-func resolve(name string) action {
-	for _, b := range bindings {
+func (m *Model) resolve(name string) action {
+	keymap := m.keymap
+	if len(keymap.bindings) == 0 {
+		keymap = defaultKeyMap
+	}
+	return keymap.resolve(name)
+}
+
+func (k keyMap) resolve(name string) action {
+	for _, b := range k.bindings {
 		for _, key := range b.keys {
 			if key == name {
 				return b.action
@@ -233,12 +291,40 @@ func resolve(name string) action {
 	return noAction
 }
 
+var keyLabels = map[string]string{
+	"space":    "␣",
+	"delete":   "Del",
+	"ctrl+c":   "Ctrl+C",
+	"ctrl+f":   "Ctrl+F",
+	"alt+c":    "Alt+C",
+	"f1":       "F1",
+	"f3":       "F3",
+	"shift+f3": "Shift+F3",
+	"f5":       "F5",
+	"esc":      "Esc",
+	"tab":      "Tab",
+	"up":       "↑",
+	"down":     "↓",
+	"home":     "Home",
+	"end":      "End",
+}
+
+func keyLabel(name string) string {
+	if label, ok := keyLabels[name]; ok {
+		return label
+	}
+	return name
+}
+
 // keyName reduces a key press to the name the binding table uses.
 //
 // Text is matched rather than the key's own string form because that is what
-// distinguishes D from d, and the sweep keys are deliberately the shifted ones.
+// distinguishes legacy shifted aliases such as D from d.
 func keyName(msg tea.KeyPressMsg) string {
 	key := tea.Key(msg)
+	if key.Mod&^tea.ModShift != 0 || (key.Mod&tea.ModShift != 0 && key.Text == "") {
+		return msg.String()
+	}
 	switch key.Code {
 	case tea.KeyEnter:
 		return "enter"
@@ -252,10 +338,18 @@ func keyName(msg tea.KeyPressMsg) string {
 		return "up"
 	case tea.KeyDown:
 		return "down"
-	}
-	// Anything held down with ctrl or alt is not one of ours.
-	if key.Mod&^tea.ModShift != 0 {
-		return msg.String()
+	case tea.KeyDelete:
+		return "delete"
+	case tea.KeyHome:
+		return "home"
+	case tea.KeyEnd:
+		return "end"
+	case tea.KeyF1:
+		return "f1"
+	case tea.KeyF3:
+		return "f3"
+	case tea.KeyF5:
+		return "f5"
 	}
 	if key.Text != "" {
 		return key.Text

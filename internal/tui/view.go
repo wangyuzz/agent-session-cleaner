@@ -180,7 +180,7 @@ func (m *Model) footerRows(actions []action, picking bool, show func(action) boo
 		}
 		display := b.display
 		if display == "" {
-			display = b.keys[0]
+			display = keyLabel(b.keys[0])
 		}
 		key, what := display+" ", m.describe(b, picking)
 

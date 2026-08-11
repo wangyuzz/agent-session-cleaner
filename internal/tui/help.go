@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"strings"
+
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/haowang02/agent-session-cleaner/internal/i18n"
@@ -10,9 +12,10 @@ import (
 // its action does, so the help can never claim a key this agent, this
 // installation or this mode does not have.
 type helpEntry struct {
-	keys  string
-	what  i18n.Key
-	gated action
+	actions []action
+	keys    string
+	what    i18n.Key
+	gated   action
 }
 
 type helpSection struct {
@@ -22,32 +25,33 @@ type helpSection struct {
 
 var helpSections = []helpSection{
 	{name: i18n.HelpBrowse, entries: []helpEntry{
-		{keys: "↑ ↓ / j k", what: i18n.HelpSelect},
-		{keys: "g / G", what: i18n.HelpTopBottom},
-		{keys: "Tab", what: i18n.HelpFocus},
+		{actions: []action{upAction, downAction}, what: i18n.HelpSelect},
+		{actions: []action{topAction, bottomAction}, what: i18n.HelpTopBottom},
+		{actions: []action{focusAction}, what: i18n.HelpFocus},
 	}},
 	{name: i18n.HelpSearch, entries: []helpEntry{
-		{keys: "/", what: i18n.HelpSearchFields},
-		{keys: "?", what: i18n.HelpSearchReverse},
-		{keys: "n / N", what: i18n.HelpSearchMatch},
+		{actions: []action{searchAction}, what: i18n.HelpSearchFields},
+		{actions: []action{searchBackAction}, what: i18n.HelpSearchReverse},
+		{actions: []action{nextMatchAction, prevMatchAction}, what: i18n.HelpSearchMatch},
+		{actions: []action{matchCaseAction}, what: i18n.HelpMatchCase},
 	}},
 	{name: i18n.HelpManage, entries: []helpEntry{
-		{keys: "␣", what: i18n.HelpSelectToggle, gated: pickAction},
-		{keys: "c", what: i18n.HelpCopySessionID, gated: copySessionIDAction},
-		{keys: "y", what: i18n.HelpCopyCwd, gated: copyWorkingDirectoryAction},
-		{keys: "d", what: i18n.HelpDelete, gated: deleteAction},
-		{keys: "a", what: i18n.HelpArchive, gated: archiveAction},
-		{keys: "u", what: i18n.HelpUnarchive, gated: unarchiveAction},
-		{keys: "D", what: i18n.HelpDeleteArchived, gated: sweepArchivedAction},
-		{keys: "O", what: i18n.HelpDeleteOrphans, gated: sweepOrphansAction},
-		{keys: "E", what: i18n.HelpDeleteEmpty, gated: sweepEmptyAction},
-		{keys: "!", what: i18n.HelpDanger, gated: dangerAction},
+		{actions: []action{pickAction}, what: i18n.HelpSelectToggle, gated: pickAction},
+		{actions: []action{copySessionIDAction}, what: i18n.HelpCopySessionID, gated: copySessionIDAction},
+		{actions: []action{copyWorkingDirectoryAction}, what: i18n.HelpCopyCwd, gated: copyWorkingDirectoryAction},
+		{actions: []action{deleteAction}, what: i18n.HelpDelete, gated: deleteAction},
+		{actions: []action{archiveAction}, what: i18n.HelpArchive, gated: archiveAction},
+		{actions: []action{unarchiveAction}, what: i18n.HelpUnarchive, gated: unarchiveAction},
+		{actions: []action{sweepArchivedAction}, what: i18n.HelpDeleteArchived, gated: sweepArchivedAction},
+		{actions: []action{sweepOrphansAction}, what: i18n.HelpDeleteOrphans, gated: sweepOrphansAction},
+		{actions: []action{sweepEmptyAction}, what: i18n.HelpDeleteEmpty, gated: sweepEmptyAction},
+		{actions: []action{dangerAction}, what: i18n.HelpDanger, gated: dangerAction},
 	}},
 	{name: i18n.HelpOther, entries: []helpEntry{
-		{keys: "Esc", what: i18n.HelpEscape},
-		{keys: "r", what: i18n.HelpReload},
-		{keys: "h", what: i18n.HelpOpen},
-		{keys: "q", what: i18n.HelpQuit},
+		{actions: []action{escapeAction}, what: i18n.HelpEscape},
+		{actions: []action{reloadAction}, what: i18n.HelpReload},
+		{actions: []action{helpAction}, what: i18n.HelpOpen},
+		{actions: []action{quitAction}, what: i18n.HelpQuit},
 	}},
 }
 
@@ -57,6 +61,7 @@ func (m *Model) helpText() []helpSection {
 		var entries []helpEntry
 		for _, entry := range section.entries {
 			if entry.gated == noAction || m.allows(entry.gated) {
+				entry.keys = m.helpKeys(entry.actions...)
 				entries = append(entries, entry)
 			}
 		}
@@ -67,16 +72,39 @@ func (m *Model) helpText() []helpSection {
 	return shown
 }
 
+func (m *Model) helpKeys(actions ...action) string {
+	groups := make([]string, 0, len(actions))
+	for _, action := range actions {
+		binding, ok := m.binding(action)
+		if !ok {
+			continue
+		}
+		labels := make([]string, len(binding.keys))
+		for i, key := range binding.keys {
+			labels[i] = keyLabel(key)
+		}
+		groups = append(groups, strings.Join(labels, ", "))
+	}
+	return strings.Join(groups, " / ")
+}
+
 func (m *Model) helpKey(msg tea.KeyPressMsg) tea.Cmd {
-	switch keyName(msg) {
-	case "esc", "q", "h", "enter":
+	name := keyName(msg)
+	if name == "esc" || name == "enter" {
 		m.help, m.helpTop = false, 0
-	case "j", "down":
+		return nil
+	}
+	switch m.resolve(name) {
+	case helpAction, quitAction:
+		m.help, m.helpTop = false, 0
+	case downAction:
 		m.scrollHelp(1)
-	case "k", "up":
+	case upAction:
 		m.scrollHelp(-1)
-	case "g":
+	case topAction:
 		m.helpTop = 0
+	case bottomAction:
+		m.helpTop = max(0, len(m.helpLines(m.helpInnerWidth()))-m.helpRoom())
 	}
 	return nil
 }

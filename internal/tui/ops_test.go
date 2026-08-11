@@ -200,8 +200,8 @@ func TestArchiveKeysAreHiddenWhereTheyMeanNothing(t *testing.T) {
 	m := start(t, newFake(tree()...))
 	omits(t, m, "a Archive")
 	omits(t, m, "u Unarchive")
-	omits(t, m, "D Delete archived")
-	contains(t, m, "d Delete")
+	omitsBinding(t, m, sweepArchivedAction)
+	containsBinding(t, m, deleteAction)
 
 	// The key does nothing rather than reporting a failure from the agent.
 	press(t, m, "a")
@@ -216,13 +216,13 @@ func TestWritingKeysVanishWithoutTheAgentsCommand(t *testing.T) {
 	m := start(t, f)
 
 	contains(t, m, "Fake CLI is unavailable. You can browse sessions")
-	omits(t, m, "d Delete")
-	omits(t, m, "␣ Select sessions")
-	omits(t, m, "! Danger mode")
+	omitsBinding(t, m, deleteAction)
+	omitsBinding(t, m, pickAction)
+	omitsBinding(t, m, dangerAction)
 	// Browsing and copying session metadata need no agent CLI.
-	contains(t, m, "c Copy session ID")
-	contains(t, m, "y Copy working directory")
-	contains(t, m, "/ Search")
+	containsBinding(t, m, copySessionIDAction)
+	containsBinding(t, m, copyWorkingDirectoryAction)
+	containsBinding(t, m, searchAction)
 }
 
 // A refusal says nothing about a session unrelated to it. What a batch holds
@@ -468,7 +468,7 @@ func TestFailedRefreshMakesTheOldSnapshotReadOnly(t *testing.T) {
 	if m.dialog != nil || len(f.calls()) != 0 {
 		t.Error("deletion started against a stale snapshot")
 	}
-	contains(t, m, "Press r before changing anything else")
+	contains(t, m, "Refresh it before changing anything else")
 
 	f.discoverErr = nil
 	press(t, m, "r")

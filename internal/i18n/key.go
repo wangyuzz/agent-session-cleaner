@@ -54,6 +54,7 @@ const (
 	BindingDeleteSelected
 	BindingDanger
 	BindingSearch
+	BindingMatchCase
 	BindingReload
 	BindingHelp
 	BindingQuit
@@ -70,6 +71,7 @@ const (
 	HelpSearchFields
 	HelpSearchReverse
 	HelpSearchMatch
+	HelpMatchCase
 	HelpManage
 	HelpSelectToggle
 	HelpCopySessionID
@@ -139,6 +141,10 @@ const (
 	SearchWrappedForward
 	SearchWrappedBackward
 	SearchStatus
+	SearchCaseSensitive
+	SearchCaseInsensitive
+	SearchCaseOn
+	SearchCaseOff
 
 	// Status line: what a key did, or why it did nothing.
 	Reloaded

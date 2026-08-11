@@ -398,10 +398,34 @@ func TestFooterWrapsRatherThanClipping(t *testing.T) {
 	for _, want := range []string{
 		"Archive", "Unarchive", "Delete", "Copy session ID", "Copy working directory",
 		"Delete archived", "Delete empty", "Delete orphans", "Danger mode",
-		"Select sessions", "Search", "Refresh", "Shortcuts", "Quit",
+		"Select sessions", "Search", "Match case", "Refresh", "Shortcuts", "Quit",
 	} {
 		if !strings.Contains(shown, want) {
 			t.Errorf("the footer does not mention %q:\n%s", want, shown)
+		}
+	}
+}
+
+func TestChineseFooterAndStatusAreTranslated(t *testing.T) {
+	t.Parallel()
+
+	m := startWithPrinter(t, &archivingFake{newFake(tree()...)}, i18n.New(i18n.Chinese))
+	for _, want := range []string{
+		"归档", "删除", "复制会话 ID", "复制工作目录", "危险模式",
+		"选择会话", "搜索", "区分大小写", "刷新列表", "按键说明", "退出",
+	} {
+		contains(t, m, want)
+	}
+
+	press(t, m, "r")
+	contains(t, m, "会话列表已刷新。")
+
+	for _, width := range []int{60, 80, 120} {
+		drive(t, m, send(t, m, tea.WindowSizeMsg{Width: width, Height: 30}))
+		for i, line := range strings.Split(m.footer(), "\n") {
+			if got := text.Width(stripped(line)); got > width {
+				t.Errorf("%d-column Chinese footer line %d is %d cells wide", width, i, got)
+			}
 		}
 	}
 }
@@ -485,10 +509,8 @@ func TestFooterOffersOnlyWhatWouldDoSomething(t *testing.T) {
 	t.Run("sweeps appear with something to sweep", func(t *testing.T) {
 		t.Parallel()
 		m := start(t, &archivingFake{newFake(tree()...)})
-		for _, gone := range []string{
-			"D Delete archived", "E Delete empty", "O Delete orphans",
-		} {
-			omits(t, m, gone)
+		for _, action := range []action{sweepArchivedAction, sweepEmptyAction, sweepOrphansAction} {
+			omitsBinding(t, m, action)
 		}
 
 		sessions := tree()
@@ -498,10 +520,8 @@ func TestFooterOffersOnlyWhatWouldDoSomething(t *testing.T) {
 			session.Session{ID: "lost", Title: "lost", Parent: "gone", SideThread: true},
 		)
 		full := start(t, &archivingFake{newFake(sessions...)})
-		for _, want := range []string{
-			"D Delete archived", "E Delete empty", "O Delete orphans",
-		} {
-			contains(t, full, want)
+		for _, action := range []action{sweepArchivedAction, sweepEmptyAction, sweepOrphansAction} {
+			containsBinding(t, full, action)
 		}
 	})
 
@@ -536,14 +556,13 @@ func TestFooterOffersOnlyWhatWouldDoSomething(t *testing.T) {
 	t.Run("nothing to act on at all", func(t *testing.T) {
 		t.Parallel()
 		m := start(t, newFake())
-		for _, gone := range []string{
-			"d Delete", "c Copy session ID", "y Copy working directory",
-			"␣ Select sessions", "/ Search",
+		for _, action := range []action{
+			deleteAction, copySessionIDAction, copyWorkingDirectoryAction, pickAction, searchAction,
 		} {
-			omits(t, m, gone)
+			omitsBinding(t, m, action)
 		}
-		for _, kept := range []string{"r Refresh", "h Shortcuts", "q Quit"} {
-			contains(t, m, kept)
+		for _, action := range []action{matchCaseAction, reloadAction, helpAction, quitAction} {
+			containsBinding(t, m, action)
 		}
 	})
 
@@ -552,7 +571,7 @@ func TestFooterOffersOnlyWhatWouldDoSomething(t *testing.T) {
 	t.Run("a hidden key still explains itself", func(t *testing.T) {
 		t.Parallel()
 		m := start(t, &archivingFake{newFake(tree()...)})
-		omits(t, m, "O Delete orphans")
+		omitsBinding(t, m, sweepOrphansAction)
 		press(t, m, "O")
 		contains(t, m, "every recorded source session is still available")
 	})

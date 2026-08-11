@@ -119,29 +119,90 @@ func TestHelpAndFooterAgree(t *testing.T) {
 func TestBindingsAreConsistent(t *testing.T) {
 	t.Parallel()
 
-	seen := map[string]action{}
-	for _, b := range bindings {
-		if len(b.keys) == 0 {
-			t.Errorf("action %d has no key", b.action)
+	for _, goos := range []string{"linux", "windows"} {
+		t.Run(goos, func(t *testing.T) {
+			t.Parallel()
+			keymap := keyMapFor(goos)
+			seen := map[string]action{}
+			for _, b := range keymap.bindings {
+				if len(b.keys) == 0 {
+					t.Errorf("action %d has no key", b.action)
+				}
+				for _, key := range b.keys {
+					if other, clash := seen[key]; clash {
+						t.Errorf("key %q is claimed by actions %d and %d", key, other, b.action)
+					}
+					seen[key] = b.action
+					if keymap.resolve(key) != b.action {
+						t.Errorf("key %q resolves to the wrong action", key)
+					}
+				}
+			}
+
+			for _, a := range append(append([]action{}, footerTop...), footerBottom...) {
+				b, ok := keymap.binding(a)
+				if !ok {
+					t.Errorf("footer names action %d, which has no binding", a)
+				}
+				if b.label == 0 {
+					t.Errorf("footer names action %d, which has no label", a)
+				}
+			}
+		})
+	}
+}
+
+func TestWindowsKeyMapKeepsLegacyAliases(t *testing.T) {
+	t.Parallel()
+
+	keymap := keyMapFor("windows")
+	tests := []struct {
+		action  action
+		primary string
+		legacy  string
+	}{
+		{deleteAction, "delete", "d"},
+		{copyWorkingDirectoryAction, "w", "y"},
+		{sweepArchivedAction, "x", "D"},
+		{searchAction, "ctrl+f", "/"},
+		{nextMatchAction, "f3", "n"},
+		{prevMatchAction, "shift+f3", "N"},
+		{reloadAction, "f5", "r"},
+		{helpAction, "f1", "h"},
+		{topAction, "home", "g"},
+		{bottomAction, "end", "G"},
+	}
+	for _, test := range tests {
+		binding, ok := keymap.binding(test.action)
+		if !ok || binding.keys[0] != test.primary {
+			t.Errorf("action %d primary key = %v, want %q", test.action, binding.keys, test.primary)
 		}
-		for _, key := range b.keys {
-			if other, clash := seen[key]; clash {
-				t.Errorf("key %q is claimed by actions %d and %d", key, other, b.action)
-			}
-			seen[key] = b.action
-			if resolve(key) != b.action {
-				t.Errorf("key %q resolves to the wrong action", key)
-			}
+		if keymap.resolve(test.legacy) != test.action {
+			t.Errorf("legacy key %q no longer resolves to action %d", test.legacy, test.action)
 		}
 	}
+}
 
-	for _, a := range append(append([]action{}, footerTop...), footerBottom...) {
-		b, ok := (&Model{}).binding(a)
-		if !ok {
-			t.Errorf("footer names action %d, which has no binding", a)
-		}
-		if b.label == 0 {
-			t.Errorf("footer names action %d, which has no label", a)
+func TestHelpUsesTheModelsKeyMap(t *testing.T) {
+	t.Parallel()
+
+	m := start(t, newFake(tree()...))
+	m.keymap = keyMapFor("windows")
+	press(t, m, "h")
+	for _, want := range []string{"Ctrl+F, /", "F3, n / Shift+F3, N", "Del, d", "F5, r", "F1, h"} {
+		contains(t, m, want)
+	}
+	contains(t, m, m.print.T(i18n.HelpMatchCase))
+}
+
+func TestKeyNameRecognizesWindowsFriendlyKeys(t *testing.T) {
+	t.Parallel()
+
+	for _, name := range []string{
+		"delete", "home", "end", "f1", "f3", "shift+f3", "f5", "ctrl+f", "alt+c",
+	} {
+		if got := keyName(keyPress(name)); got != name {
+			t.Errorf("keyName(%q) = %q", name, got)
 		}
 	}
 }

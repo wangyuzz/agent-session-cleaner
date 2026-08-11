@@ -52,6 +52,7 @@ type Model struct {
 	meta     agent.Meta
 	print    *i18n.Printer
 	theme    theme.Theme
+	keymap   keyMap
 
 	width, height int
 
@@ -116,6 +117,7 @@ func New(ctx context.Context, target agent.Agent, print *i18n.Printer) *Model {
 		archiver: archiver,
 		meta:     target.Meta(),
 		print:    print,
+		keymap:   defaultKeyMap,
 		forest:   session.Build(nil),
 		messages: make(map[cacheKey][]session.Message),
 		pending:  make(map[cacheKey]bool),
@@ -240,7 +242,7 @@ func (m *Model) press(msg tea.KeyPressMsg) tea.Cmd {
 	case m.search.active:
 		return m.searchKey(msg)
 	}
-	return m.command(resolve(keyName(msg)))
+	return m.command(m.resolve(keyName(msg)))
 }
 
 func (m *Model) command(a action) tea.Cmd {
@@ -272,6 +274,8 @@ func (m *Model) command(a action) tea.Cmd {
 		return m.quit()
 	case searchAction:
 		return m.beginSearch(1)
+	case matchCaseAction:
+		return m.toggleMatchCase()
 	case searchBackAction:
 		return m.beginSearch(-1)
 	case nextMatchAction:

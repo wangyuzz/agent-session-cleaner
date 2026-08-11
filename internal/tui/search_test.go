@@ -29,22 +29,43 @@ func TestSearchJumpsToTheFirstMatch(t *testing.T) {
 	m := start(t, newFake(searchable()...))
 	typing(t, m, "/", "parser")
 
-	// Smart case: an all-lowercase query matches either way.
+	// Search ignores case until the user explicitly asks otherwise.
 	if m.cursor != 0 {
 		t.Errorf("cursor = %d, want the first match", m.cursor)
 	}
 	contains(t, m, "/parser   match 1/2")
 }
 
-// Smart case, as in vim: an uppercase letter makes the search exact.
-func TestSearchSmartCase(t *testing.T) {
+func TestSearchCanToggleCaseSensitivity(t *testing.T) {
 	t.Parallel()
 
 	m := start(t, newFake(searchable()...))
 	typing(t, m, "/", "Parser")
+	contains(t, m, "match 1/2")
+	contains(t, m, "ignore case")
+
+	press(t, m, "alt+c")
 	contains(t, m, "match 1/1")
+	contains(t, m, "case-sensitive")
 	if m.cursor != 0 {
 		t.Errorf("cursor = %d, want the capitalised match", m.cursor)
+	}
+	if m.search.query != "Parser" {
+		t.Errorf("case toggle changed the query to %q", m.search.query)
+	}
+
+	press(t, m, "alt+c")
+	contains(t, m, "match 1/2")
+}
+
+func TestReopeningSearchKeepsTheVisibleQuery(t *testing.T) {
+	t.Parallel()
+
+	m := start(t, newFake(searchable()...))
+	typing(t, m, "/", "parser")
+	press(t, m, "enter", "/")
+	if got := m.search.input.Value(); got != "parser" {
+		t.Errorf("reopened search input = %q, want parser", got)
 	}
 }
 

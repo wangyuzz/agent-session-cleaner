@@ -73,7 +73,7 @@ asc codex --codex-bin /path/to/codex --codex-concurrency 8
 
 ### 语言
 
-界面会跟随系统 locale（`LC_ALL`、`LC_MESSAGES`、`LANGUAGE` 或 `LANG`）：中文 locale 显示简体中文，其他语言显示英文。如需覆盖自动检测：
+界面会跟随系统语言。Windows 读取用户首选的界面语言；macOS 和 Linux 读取 `LC_ALL`、`LC_MESSAGES`、`LANGUAGE` 或 `LANG`。中文环境显示简体中文，其他语言显示英文。如需覆盖自动检测：
 
 ```bash
 ASC_LANG=en asc
@@ -84,27 +84,28 @@ ASC_LANG=zh-CN asc
 
 ## 快捷键
 
-界面底部会列出当前 Agent 和本机环境可用的快捷键。按 `h` 可查看完整的快捷键说明。
+界面底部会列出当前 Agent 和本机环境可用的快捷键。Windows 版本优先显示熟悉的 Windows 键，同时保留原来的字母键和 Vim 风格键作为兼容别名。在 Windows 上按 `F1`，或在任意平台按 `h`，可查看完整说明。
 
 | 键 | 作用 | 支持范围 |
 |---|---|---|
 | `↑` `↓` / `j` `k` | 移到上一条 / 下一条会话 | 全部 Agent |
-| `g` / `G` | 跳到列表顶部 / 底部 | 全部 Agent |
+| `Home` / `End`（Windows）、`g` / `G` | 跳到列表顶部 / 底部 | 全部 Agent |
 | `Tab` | 在会话列表和对话详情之间切换 | 全部 Agent |
 | `␣` | 选择或取消选择当前会话 | 全部 Agent |
-| `/` | 搜索标题、工作目录、会话 ID 和客户端 | 全部 Agent |
+| `Ctrl+F`（Windows）、`/` | 搜索标题、工作目录、会话 ID 和客户端 | 全部 Agent |
 | `?` | 反向搜索 | 全部 Agent |
-| `n` / `N` | 下一个 / 上一个匹配项 | 全部 Agent |
+| `F3` / `Shift+F3`（Windows）、`n` / `N` | 下一个 / 上一个匹配项 | 全部 Agent |
+| `Alt+C` | 切换是否区分大小写；默认不区分大小写 | 全部 Agent |
 | `c` | 复制当前会话的 ID | 全部 Agent |
-| `y` | 复制当前会话的工作目录 | 全部 Agent |
-| `d` | 删除当前会话或所有已选会话 | 全部 Agent |
+| `w`（Windows）、`y` | 复制当前会话的工作目录 | 全部 Agent |
+| `Delete`（Windows）、`d` | 删除当前会话或所有已选会话 | 全部 Agent |
 | `a` | 归档当前会话或所有已选会话 | 仅 Codex |
 | `u` | 取消归档当前会话或所有已选会话 | 仅 Codex |
-| `D` | 删除所有已归档会话 | 仅 Codex |
-| `O` | 删除所有孤立的子代理会话 | Codex 和 OpenCode |
-| `E` | 删除所有空会话 | 仅 Claude Code |
-| `r` | 刷新会话列表 | 全部 Agent |
-| `h` | 按键说明 | 全部 Agent |
+| `x`（Windows）、`D` | 删除所有已归档会话 | 仅 Codex |
+| `o`（Windows）、`O` | 删除所有孤立的子代理会话 | Codex 和 OpenCode |
+| `e`（Windows）、`E` | 删除所有空会话 | 仅 Claude Code |
+| `F5`（Windows）、`r` | 刷新会话列表 | 全部 Agent |
+| `F1`（Windows）、`h` | 按键说明 | 全部 Agent |
 | `!` | 开启或关闭危险模式；删除单个会话时跳过确认 | 全部 Agent |
 | `Esc` | 退出多选模式、关闭危险模式，或清除搜索 | 全部 Agent |
 | `q` | 退出 | 全部 Agent |
