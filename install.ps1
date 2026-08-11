@@ -52,6 +52,7 @@ $Archive = Join-Path $TemporaryDirectory $Asset
 $Checksums = Join-Path $TemporaryDirectory "checksums.txt"
 $ExtractDirectory = Join-Path $TemporaryDirectory "extract"
 $Staged = $null
+$Backup = $null
 
 function Download([string]$Uri, [string]$Destination) {
     $Parameters = @{
@@ -134,7 +135,13 @@ try {
     $Staged = Join-Path $InstallDirectory (".$Binary.install." + $PID + ".exe")
     Copy-Item -LiteralPath $Files[0].FullName -Destination $Staged -Force
     if (Test-Path -LiteralPath $Destination) {
-        [IO.File]::Replace($Staged, $Destination, $null)
+        # Windows PowerShell 5.1 rejects a null backup path even though newer
+        # .NET versions accept it. Use a real, unique backup so the documented
+        # installer command works in both Windows PowerShell and PowerShell 7.
+        $Backup = Join-Path $InstallDirectory (".$Binary.backup." + [guid]::NewGuid().ToString("N") + ".exe")
+        [IO.File]::Replace($Staged, $Destination, $Backup)
+        Remove-Item -LiteralPath $Backup -Force
+        $Backup = $null
     } else {
         [IO.File]::Move($Staged, $Destination)
     }
@@ -188,6 +195,9 @@ try {
 } finally {
     if ($Staged -and (Test-Path -LiteralPath $Staged)) {
         Remove-Item -LiteralPath $Staged -Force -ErrorAction SilentlyContinue
+    }
+    if ($Backup -and (Test-Path -LiteralPath $Backup)) {
+        Remove-Item -LiteralPath $Backup -Force -ErrorAction SilentlyContinue
     }
     if (Test-Path -LiteralPath $TemporaryDirectory) {
         Remove-Item -LiteralPath $TemporaryDirectory -Recurse -Force -ErrorAction SilentlyContinue

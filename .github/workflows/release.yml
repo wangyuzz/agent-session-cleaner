@@ -82,6 +82,13 @@ jobs:
             exit 1
           }
 
+      # Exercise the File.Replace overload used by install.ps1 under Windows
+      # PowerShell 5.1. Unlike modern PowerShell/.NET, 5.1 rejects a null
+      # backup path even though the script parses successfully.
+      - name: Windows installer replacement compatibility
+        shell: powershell
+        run: ./.github/scripts/test-windows-installer-replacement.ps1
+
       - name: Build
         run: go build ./...
 

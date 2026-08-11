@@ -72,6 +72,10 @@ jobs:
             exit 1
           }
 
+      - name: Windows installer replacement compatibility
+        shell: powershell
+        run: ./.github/scripts/test-windows-installer-replacement.ps1
+
       - name: Build
         run: go build ./...
 
