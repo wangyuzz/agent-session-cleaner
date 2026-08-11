@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 
 	"github.com/haowang02/agent-session-cleaner/internal/agent"
@@ -18,10 +19,12 @@ import (
 // make `agent-session-cleaner codex --codex-home DIR` silently ignore the
 // directory. Every message here is ours to translate, too.
 type options struct {
-	agent   string
-	homes   map[string]string
-	help    bool
-	version bool
+	agent            string
+	homes            map[string]string
+	codexBin         string
+	codexConcurrency int
+	help             bool
+	version          bool
 }
 
 func parse(args []string) (options, error) {
@@ -51,20 +54,40 @@ func parse(args []string) (options, error) {
 			}
 			opts.version = true
 			continue
+		case "codex-bin":
+			resolved, next, err := optionValue(args, i, arg, value, hasValue)
+			if err != nil {
+				return opts, err
+			}
+			i = next
+			opts.codexBin = agent.ExpandHome(resolved)
+			continue
+		case "codex-concurrency":
+			resolved, next, err := optionValue(args, i, arg, value, hasValue)
+			if err != nil {
+				return opts, err
+			}
+			i = next
+			limit, err := strconv.Atoi(resolved)
+			if err != nil || limit <= 0 {
+				return opts, i18n.Errorf(i18n.CLIOptionPositiveInteger, i18n.Args{
+					"name": "--" + name, "value": resolved,
+				})
+			}
+			opts.codexConcurrency = limit
+			continue
 		}
 
 		home, ok := strings.CutSuffix(name, "-home")
 		if !ok || !isAgent(home) {
 			return opts, i18n.Errorf(i18n.CLIUnknownOption, i18n.Args{"name": arg})
 		}
-		if !hasValue {
-			if i+1 >= len(args) || strings.HasPrefix(args[i+1], "-") {
-				return opts, i18n.Errorf(i18n.CLIOptionNeedsValue, i18n.Args{"name": arg})
-			}
-			i++
-			value = args[i]
+		resolved, next, err := optionValue(args, i, arg, value, hasValue)
+		if err != nil {
+			return opts, err
 		}
-		opts.homes[home] = agent.ExpandHome(value)
+		i = next
+		opts.homes[home] = agent.ExpandHome(resolved)
 	}
 
 	if opts.agent != "" && !isAgent(opts.agent) {
@@ -74,6 +97,16 @@ func parse(args []string) (options, error) {
 		})
 	}
 	return opts, nil
+}
+
+func optionValue(args []string, index int, name, inline string, hasInline bool) (string, int, error) {
+	if hasInline {
+		return inline, index, nil
+	}
+	if index+1 >= len(args) || strings.HasPrefix(args[index+1], "-") {
+		return "", index, i18n.Errorf(i18n.CLIOptionNeedsValue, i18n.Args{"name": name})
+	}
+	return args[index+1], index + 1, nil
 }
 
 func isAgent(name string) bool {
@@ -95,6 +128,16 @@ func usage(out io.Writer, print *i18n.Printer) {
 			what: print.T(known.homeHelp),
 		})
 	}
+	entries = append(entries,
+		entry{
+			flag: "    --codex-bin " + print.T(i18n.CLIFile),
+			what: print.T(i18n.CLICodexBin),
+		},
+		entry{
+			flag: "    --codex-concurrency " + print.T(i18n.CLICount),
+			what: print.T(i18n.CLICodexConcurrency),
+		},
+	)
 	entries = append(entries, entry{"    --version", print.T(i18n.CLIVersion)})
 
 	// text.Pad clips its input, so include the agent list in the shared column width.

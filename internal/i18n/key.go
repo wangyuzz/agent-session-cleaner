@@ -211,9 +211,14 @@ const (
 	CLIAgentChoices
 	CLIUnknownOption
 	CLIOptionNeedsValue
+	CLIOptionPositiveInteger
 	CLIUnexpectedArgument
 	CLIDirectory
+	CLIFile
+	CLICount
 	CLICodexHome
+	CLICodexBin
+	CLICodexConcurrency
 	CLIClaudeHome
 	CLIOpenCodeHome
 	CLIPiHome

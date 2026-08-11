@@ -15,27 +15,36 @@ var known = []struct {
 	id string
 	// homeHelp describes this agent's --<id>-home flag.
 	homeHelp i18n.Key
-	build    func(home string) agent.Agent
+	build    func(options) agent.Agent
 }{
 	{
 		id:       codex.ID,
 		homeHelp: i18n.CLICodexHome,
-		build:    func(home string) agent.Agent { return codex.New(home) },
+		build: func(opts options) agent.Agent {
+			var configured []codex.Option
+			if opts.codexBin != "" {
+				configured = append(configured, codex.WithBinary(opts.codexBin))
+			}
+			if opts.codexConcurrency > 0 {
+				configured = append(configured, codex.WithBulkConcurrency(opts.codexConcurrency))
+			}
+			return codex.New(opts.homes[codex.ID], configured...)
+		},
 	},
 	{
 		id:       claude.ID,
 		homeHelp: i18n.CLIClaudeHome,
-		build:    func(home string) agent.Agent { return claude.New(home) },
+		build:    func(opts options) agent.Agent { return claude.New(opts.homes[claude.ID]) },
 	},
 	{
 		id:       opencode.ID,
 		homeHelp: i18n.CLIOpenCodeHome,
-		build:    func(home string) agent.Agent { return opencode.New(home) },
+		build:    func(opts options) agent.Agent { return opencode.New(opts.homes[opencode.ID]) },
 	},
 	{
 		id:       pi.ID,
 		homeHelp: i18n.CLIPiHome,
-		build:    func(home string) agent.Agent { return pi.New(home) },
+		build:    func(opts options) agent.Agent { return pi.New(opts.homes[pi.ID]) },
 	},
 }
 
@@ -49,19 +58,19 @@ func ids() []string {
 }
 
 // buildAll constructs every agent, applying whichever home overrides were given.
-func buildAll(homes map[string]string) []agent.Agent {
+func buildAll(opts options) []agent.Agent {
 	agents := make([]agent.Agent, len(known))
 	for i, entry := range known {
-		agents[i] = entry.build(homes[entry.id])
+		agents[i] = entry.build(opts)
 	}
 	return agents
 }
 
 // build constructs one agent by id.
-func build(id string, homes map[string]string) (agent.Agent, bool) {
+func build(id string, opts options) (agent.Agent, bool) {
 	for _, entry := range known {
 		if entry.id == id {
-			return entry.build(homes[id]), true
+			return entry.build(opts), true
 		}
 	}
 	return nil, false

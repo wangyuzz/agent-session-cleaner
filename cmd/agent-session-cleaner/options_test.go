@@ -48,6 +48,12 @@ func TestParse(t *testing.T) {
 			args:  []string{"-codex-home", "/a"},
 			homes: map[string]string{"codex": "/a"},
 		},
+		{
+			name:  "Codex performance options do not require an agent position",
+			args:  []string{"--codex-bin", "/tools/codex", "codex", "--codex-concurrency=8"},
+			agent: "codex",
+			homes: map[string]string{},
+		},
 	}
 
 	for _, test := range tests {
@@ -67,6 +73,11 @@ func TestParse(t *testing.T) {
 			}
 			if len(opts.homes) != len(test.homes) {
 				t.Errorf("homes = %v, want %v", opts.homes, test.homes)
+			}
+			if test.name == "Codex performance options do not require an agent position" {
+				if opts.codexBin != "/tools/codex" || opts.codexConcurrency != 8 {
+					t.Errorf("Codex options = %q, %d", opts.codexBin, opts.codexConcurrency)
+				}
 			}
 		})
 	}
@@ -100,6 +111,10 @@ func TestParseRefusals(t *testing.T) {
 		{"a home flag followed by another option", []string{"--codex-home", "--help"}, "needs a value"},
 		{"a help flag with a value", []string{"--help=yes"}, "unknown option"},
 		{"a version flag with a value", []string{"--version=1"}, "unknown option"},
+		{"a missing Codex binary", []string{"--codex-bin"}, "needs a value"},
+		{"a missing Codex concurrency", []string{"--codex-concurrency"}, "needs a value"},
+		{"zero Codex concurrency", []string{"--codex-concurrency=0"}, "positive integer"},
+		{"non-numeric Codex concurrency", []string{"--codex-concurrency=many"}, "positive integer"},
 		{"two agents", []string{"codex", "claude"}, "unexpected argument “claude”"},
 	}
 
@@ -124,12 +139,15 @@ func TestParseExpandsHome(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
 
-	opts, err := parse([]string{"--codex-home", "~/.codex"})
+	opts, err := parse([]string{"--codex-home", "~/.codex", "--codex-bin", "~/bin/codex"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if want := filepath.Join(home, ".codex"); opts.homes["codex"] != want {
 		t.Errorf("home = %q, want %q", opts.homes["codex"], want)
+	}
+	if want := filepath.Join(home, "bin", "codex"); opts.codexBin != want {
+		t.Errorf("binary = %q, want %q", opts.codexBin, want)
 	}
 }
 
@@ -143,6 +161,7 @@ func TestUsageNamesEveryAgent(t *testing.T) {
 	for _, want := range []string{
 		buildinfo.Name, "Usage:", "Options:", "-h, --help", "--version",
 		"--codex-home", "--claude-home", "--opencode-home", "--pi-home",
+		"--codex-bin", "--codex-concurrency",
 	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("usage does not mention %q:\n%s", want, text)
@@ -178,22 +197,26 @@ func TestRegistryIsComplete(t *testing.T) {
 	if got := strings.Join(ids(), ","); got != "codex,claude,opencode,pi" {
 		t.Errorf("ids() = %s", got)
 	}
-	agents := buildAll(map[string]string{"codex": "/tmp/codex"})
+	opts := options{homes: map[string]string{"codex": "/tmp/codex"}, codexConcurrency: 8}
+	agents := buildAll(opts)
 	if len(agents) != len(known) {
 		t.Fatalf("built %d agents, want %d", len(agents), len(known))
 	}
 	if got := agents[0].Meta().Home; got != "/tmp/codex" {
 		t.Errorf("the override did not reach the agent: %q", got)
 	}
+	if got := agents[0].Meta().BulkConcurrency; got != 8 {
+		t.Errorf("Codex concurrency = %d, want 8", got)
+	}
 	for _, entry := range known {
-		if _, ok := build(entry.id, nil); !ok {
+		if _, ok := build(entry.id, options{homes: map[string]string{}}); !ok {
 			t.Errorf("cannot build %q", entry.id)
 		}
 		if entry.homeHelp == 0 {
 			t.Errorf("%q has no help for its --home flag", entry.id)
 		}
 	}
-	if _, ok := build("gemini", nil); ok {
+	if _, ok := build("gemini", options{homes: map[string]string{}}); ok {
 		t.Error("built an agent that does not exist")
 	}
 }
@@ -205,7 +228,7 @@ func TestReady(t *testing.T) {
 
 	t.Run("a missing directory", func(t *testing.T) {
 		t.Parallel()
-		target, _ := build("codex", map[string]string{"codex": "/nowhere/at/all"})
+		target, _ := build("codex", options{homes: map[string]string{"codex": "/nowhere/at/all"}})
 		err := ready(target)
 		if err == nil {
 			t.Fatal("ready() accepted a directory that does not exist")
@@ -221,7 +244,7 @@ func TestReady(t *testing.T) {
 		if err := os.MkdirAll(home, 0o755); err != nil {
 			t.Fatal(err)
 		}
-		target, _ := build("opencode", map[string]string{"opencode": home})
+		target, _ := build("opencode", options{homes: map[string]string{"opencode": home}})
 		if err := ready(target); !errors.Is(err, agent.ErrUnusableHome) {
 			t.Errorf("ready() = %v, want ErrUnusableHome", err)
 		}
@@ -233,7 +256,7 @@ func TestReady(t *testing.T) {
 		if err := os.MkdirAll(home, 0o755); err != nil {
 			t.Fatal(err)
 		}
-		target, _ := build("opencode", map[string]string{"opencode": home})
+		target, _ := build("opencode", options{homes: map[string]string{"opencode": home}})
 		if err := ready(target); err != nil {
 			t.Errorf("ready() = %v", err)
 		}

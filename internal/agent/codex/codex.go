@@ -58,10 +58,12 @@ var (
 
 // Agent is the Codex session store.
 type Agent struct {
-	home      string
-	fsys      fs.FS
-	run       execx.Runner
-	installed func() bool
+	home            string
+	binary          string
+	bulkConcurrency int
+	fsys            fs.FS
+	run             execx.Runner
+	installed       func() bool
 }
 
 // Option adjusts an agent, for tests that supply their own session tree or
@@ -71,6 +73,27 @@ type Option func(*Agent)
 // WithFS reads sessions from fsys instead of the home directory itself.
 func WithFS(fsys fs.FS) Option {
 	return func(a *Agent) { a.fsys = fsys }
+}
+
+// WithBinary runs changes through binary instead of the automatically
+// resolved Codex command. An absolute path avoids launcher overhead on
+// platforms where a package manager puts a script in front of Codex.
+func WithBinary(binary string) Option {
+	return func(a *Agent) {
+		if binary = strings.TrimSpace(binary); binary != "" {
+			a.binary = agent.ExpandHome(binary)
+		}
+	}
+}
+
+// WithBulkConcurrency changes how many unrelated Codex sessions may be
+// modified at once. Non-positive values leave the default unchanged.
+func WithBulkConcurrency(limit int) Option {
+	return func(a *Agent) {
+		if limit > 0 {
+			a.bulkConcurrency = limit
+		}
+	}
 }
 
 // WithRunner sends changes to run rather than the real Codex command, and
@@ -85,7 +108,12 @@ func WithRunner(run execx.Runner) Option {
 // New returns the Codex agent for home, or for the default location when home
 // is empty.
 func New(home string, opts ...Option) *Agent {
-	a := &Agent{home: agent.Resolve(home, DefaultHome), run: execx.Run}
+	a := &Agent{
+		home:            agent.Resolve(home, DefaultHome),
+		binary:          configuredBinary(),
+		bulkConcurrency: configuredBulkConcurrency(),
+		run:             execx.Run,
+	}
 	for _, opt := range opts {
 		opt(a)
 	}
@@ -93,7 +121,7 @@ func New(home string, opts ...Option) *Agent {
 		a.fsys = os.DirFS(a.home)
 	}
 	if a.installed == nil {
-		a.installed = func() bool { return execx.Available(Binary) }
+		a.installed = func() bool { return execx.Available(a.binary) }
 	}
 	return a
 }
@@ -129,7 +157,7 @@ func (a *Agent) Meta() agent.Meta {
 		OrphanLabel: i18n.OrphanSessions,
 		// Archiving moves one file and deleting removes one file, so a batch
 		// only contends for the directory itself.
-		BulkConcurrency: 4,
+		BulkConcurrency: a.bulkConcurrency,
 	}
 }
 
@@ -334,7 +362,7 @@ func (a *Agent) Delete(ctx context.Context, s session.Session) error {
 // command runs the Codex CLI against the same tree the listing was read from.
 func (a *Agent) command(ctx context.Context, args ...string) error {
 	return a.run(ctx, execx.Command{
-		Name:  Binary,
+		Name:  a.binary,
 		Args:  args,
 		Env:   map[string]string{"CODEX_HOME": a.home},
 		Label: Label,

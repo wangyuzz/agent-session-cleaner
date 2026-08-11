@@ -50,12 +50,12 @@ func run(ctx context.Context, args []string, print *i18n.Printer, out, _ io.Writ
 
 	chosen := opts.agent
 	if chosen == "" {
-		if chosen, err = choose(ctx, opts.homes, print); err != nil || chosen == "" {
+		if chosen, err = choose(ctx, opts, print); err != nil || chosen == "" {
 			return err
 		}
 	}
 
-	target, ok := build(chosen, opts.homes)
+	target, ok := build(chosen, opts)
 	if !ok {
 		return i18n.Errorf(i18n.CLIAgentChoices, i18n.Args{
 			"value": chosen, "choices": strings.Join(ids(), ", "),
@@ -71,8 +71,8 @@ func run(ctx context.Context, args []string, print *i18n.Printer, out, _ io.Writ
 
 // choose opens the chooser and reports which agent the user settled on, or an
 // empty string if they quit.
-func choose(ctx context.Context, homes map[string]string, print *i18n.Printer) (string, error) {
-	chooser := picker.New(ctx, buildAll(homes), print)
+func choose(ctx context.Context, opts options, print *i18n.Printer) (string, error) {
+	chooser := picker.New(ctx, buildAll(opts), print)
 	if _, err := tea.NewProgram(chooser, tea.WithContext(ctx)).Run(); err != nil {
 		return "", err
 	}

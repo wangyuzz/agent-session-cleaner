@@ -369,7 +369,7 @@ func TestDiscoverIgnoresRubbish(t *testing.T) {
 func TestCapabilities(t *testing.T) {
 	t.Parallel()
 
-	a := codex.New("/tmp/codex")
+	a := codex.New("/tmp/codex", codex.WithBulkConcurrency(8))
 	got := a.Meta()
 	// Codex sub-agent rollouts record their parent, so a deleted conversation
 	// can leave one stranded; there is no empty-session sweep here.
@@ -378,6 +378,9 @@ func TestCapabilities(t *testing.T) {
 	}
 	if got.EmptyLabel != 0 {
 		t.Error("Codex should not offer an empty-session sweep")
+	}
+	if got.BulkConcurrency != 8 {
+		t.Errorf("BulkConcurrency = %d, want 8", got.BulkConcurrency)
 	}
 	if _, ok := any(a).(agent.Archiver); !ok {
 		t.Error("Codex should be able to archive")
@@ -408,7 +411,7 @@ func TestOperationsDelegateToTheCodexCommand(t *testing.T) {
 	t.Parallel()
 
 	var seen recorder
-	a := codex.New("/tmp/codex", codex.WithRunner(seen.run))
+	a := codex.New("/tmp/codex", codex.WithBinary("custom-codex"), codex.WithRunner(seen.run))
 	s := session.Session{ID: "abc"}
 
 	if err := a.Archive(t.Context(), s); err != nil {
@@ -429,6 +432,9 @@ func TestOperationsDelegateToTheCodexCommand(t *testing.T) {
 		{"delete", "abc", "--force"},
 	}
 	for i, call := range seen.calls {
+		if call.Name != "custom-codex" {
+			t.Errorf("call %d used %q, want the configured binary", i, call.Name)
+		}
 		if strings.Join(call.Args, " ") != strings.Join(want[i], " ") {
 			t.Errorf("call %d = %v, want %v", i, call.Args, want[i])
 		}

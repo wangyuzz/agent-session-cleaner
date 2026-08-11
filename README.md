@@ -57,6 +57,18 @@ The OpenCode path must name the `opencode` data directory itself, not its parent
 
 Session discovery and previews read the stored data directly. Codex changes and OpenCode deletions require their respective CLIs; if a CLI is unavailable, that agent opens in browse-only mode. Claude Code and Pi deletions operate directly on their session files.
 
+### Codex command performance
+
+Codex archive, unarchive, and delete operations start the Codex command once per session. On Windows, npm normally puts a `codex.cmd` and Node launcher in front of the native executable. When that standard npm layout is detected, the app automatically uses the bundled `codex.exe` instead. Unknown layouts safely fall back to `codex` on `PATH`.
+
+To choose an executable or tune the number of simultaneous changes explicitly:
+
+```bash
+asc codex --codex-bin /path/to/codex --codex-concurrency 8
+```
+
+The equivalent environment variables are `ASC_CODEX_BIN` and `ASC_CODEX_CONCURRENCY`. Concurrency defaults to 4 on every platform; higher values can reduce batch time but may increase CPU, disk, or antivirus contention.
+
 ### Language
 
 The interface follows your locale (`LC_ALL`, `LC_MESSAGES`, `LANGUAGE`, or `LANG`). Chinese locales use Simplified Chinese; all other locales use English. To override detection:

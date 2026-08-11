@@ -57,6 +57,18 @@ OpenCode 路径必须指向名为 `opencode` 的数据目录本身，而不是�
 
 会话列表和对话预览会直接读取已有数据。修改 Codex 会话和删除 OpenCode 会话需要相应的 CLI；CLI 不可用时，仍可进入该 Agent 的只读浏览模式。Claude Code 和 Pi 的删除操作会直接作用于各自的会话文件。
 
+### Codex 命令性能
+
+Codex 的归档、取消归档和删除操作会为每条会话启动一次 Codex 命令。在 Windows 上，通过 npm 安装的 Codex 通常需要经过 `codex.cmd` 和 Node 启动器。本程序检测到标准 npm 目录结构时，会自动使用包内的原生 `codex.exe`；无法识别的目录结构仍会安全回退到 `PATH` 中的 `codex`。
+
+如需明确指定可执行文件或调整同时执行的操作数量：
+
+```bash
+asc codex --codex-bin /path/to/codex --codex-concurrency 8
+```
+
+对应的环境变量为 `ASC_CODEX_BIN` 和 `ASC_CODEX_CONCURRENCY`。所有平台的默认并发数均为 4；提高并发可以缩短批量操作时间，但也可能增加 CPU、磁盘或杀毒软件的竞争。
+
 ### 语言
 
 界面会跟随系统 locale（`LC_ALL`、`LC_MESSAGES`、`LANGUAGE` 或 `LANG`）：中文 locale 显示简体中文，其他语言显示英文。如需覆盖自动检测：
