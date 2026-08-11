@@ -53,6 +53,7 @@ $Checksums = Join-Path $TemporaryDirectory "checksums.txt"
 $ExtractDirectory = Join-Path $TemporaryDirectory "extract"
 $Staged = $null
 $Backup = $null
+$DeferredBackups = @()
 
 function Download([string]$Uri, [string]$Destination) {
     $Parameters = @{
@@ -97,6 +98,38 @@ function Test-PathListContains([string]$PathList, [string]$Directory) {
     return $false
 }
 
+function Remove-InstallerFile([string]$Path, [int]$Attempts = 4) {
+    if (-not $Path) {
+        return $true
+    }
+    for ($Attempt = 1; $Attempt -le $Attempts; $Attempt++) {
+        if (-not (Test-Path -LiteralPath $Path)) {
+            return $true
+        }
+        try {
+            Remove-Item -LiteralPath $Path -Force -ErrorAction Stop
+            return $true
+        } catch {
+            if ($Attempt -lt $Attempts) {
+                Start-Sleep -Milliseconds (100 * $Attempt)
+            }
+        }
+    }
+    return -not (Test-Path -LiteralPath $Path)
+}
+
+function Remove-StaleInstallerBackups([string]$Directory) {
+    if (-not (Test-Path -LiteralPath $Directory)) {
+        return
+    }
+    $Pattern = ".$Binary.backup.*.exe"
+    foreach ($OldBackup in @(Get-ChildItem -LiteralPath $Directory -Filter $Pattern -File -Force -ErrorAction SilentlyContinue)) {
+        if (-not (Remove-InstallerFile $OldBackup.FullName 1)) {
+            Write-Output $OldBackup.FullName
+        }
+    }
+}
+
 try {
     New-Item -ItemType Directory -Path $TemporaryDirectory | Out-Null
 
@@ -131,6 +164,7 @@ try {
     }
 
     New-Item -ItemType Directory -Path $InstallDirectory -Force | Out-Null
+    $DeferredBackups = @(Remove-StaleInstallerBackups $InstallDirectory)
     $Destination = Join-Path $InstallDirectory $ExecutableName
     $Staged = Join-Path $InstallDirectory (".$Binary.install." + $PID + ".exe")
     Copy-Item -LiteralPath $Files[0].FullName -Destination $Staged -Force
@@ -140,7 +174,12 @@ try {
         # installer command works in both Windows PowerShell and PowerShell 7.
         $Backup = Join-Path $InstallDirectory (".$Binary.backup." + [guid]::NewGuid().ToString("N") + ".exe")
         [IO.File]::Replace($Staged, $Destination, $Backup)
-        Remove-Item -LiteralPath $Backup -Force
+        if (-not (Remove-InstallerFile $Backup)) {
+            # A running copy of the old executable keeps its renamed file
+            # locked. The replacement itself succeeded, so leave that backup
+            # for a later install instead of reporting the update as failed.
+            $DeferredBackups += $Backup
+        }
         $Backup = $null
     } else {
         [IO.File]::Move($Staged, $Destination)
@@ -187,6 +226,10 @@ try {
     }
 
     Write-Host "Installed $Binary to $Destination"
+    if ($DeferredBackups.Count) {
+        $PendingBackups = $DeferredBackups -join ", "
+        Write-Warning "A previous executable is still in use. Restart running copies to use the new version; a later install will remove the temporary backup(s): $PendingBackups"
+    }
     if ($UseAlias) {
         Write-Host "Run '$Alias' in a new terminal to get started."
     } else {
