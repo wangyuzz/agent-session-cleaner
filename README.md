@@ -2,8 +2,8 @@
   <h1>agent-session-cleaner</h1>
   <p><strong>Browse, resume, and clean up all your Codex, Claude Code, OpenCode, and Pi sessions from one terminal.</strong></p>
   <p>
-    <a href="https://github.com/haowang02/agent-session-cleaner/releases/latest"><img src="https://img.shields.io/github/v/release/haowang02/agent-session-cleaner?label=release" alt="Latest release"></a>
-    <a href="https://github.com/haowang02/agent-session-cleaner/actions/workflows/ci.yml"><img src="https://github.com/haowang02/agent-session-cleaner/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
+    <a href="https://github.com/wangyuzz/agent-session-cleaner/releases/latest"><img src="https://img.shields.io/github/v/release/wangyuzz/agent-session-cleaner?label=release" alt="Latest release"></a>
+    <a href="https://github.com/wangyuzz/agent-session-cleaner/actions/workflows/ci.yml"><img src="https://github.com/wangyuzz/agent-session-cleaner/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
     <img src="https://img.shields.io/badge/platforms-macOS%20%7C%20Linux%20%7C%20Windows-blue" alt="Platforms: macOS, Linux, and Windows">
     <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License"></a>
   </p>
@@ -17,13 +17,13 @@
 Install or update on macOS and Linux:
 
 ```bash
-curl -LsSf https://raw.githubusercontent.com/haowang02/agent-session-cleaner/main/install.sh | sh
+curl -LsSf https://raw.githubusercontent.com/wangyuzz/agent-session-cleaner/main/install.sh | sh
 ```
 
 Install or update on Windows from PowerShell:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/haowang02/agent-session-cleaner/main/install.ps1 | iex"
+powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/wangyuzz/agent-session-cleaner/main/install.ps1 | iex"
 ```
 
 The Windows installer adds `%LOCALAPPDATA%\Programs\agent-session-cleaner\bin` to your user `PATH`. Open a new terminal after the first install.

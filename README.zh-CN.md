@@ -2,8 +2,8 @@
   <h1>agent-session-cleaner</h1>
   <p><strong>在一个终端中浏览、恢复和清理 Codex、Claude Code、OpenCode 与 Pi 的全部会话。</strong></p>
   <p>
-    <a href="https://github.com/haowang02/agent-session-cleaner/releases/latest"><img src="https://img.shields.io/github/v/release/haowang02/agent-session-cleaner?label=release" alt="最新版本"></a>
-    <a href="https://github.com/haowang02/agent-session-cleaner/actions/workflows/ci.yml"><img src="https://github.com/haowang02/agent-session-cleaner/actions/workflows/ci.yml/badge.svg" alt="CI 状态"></a>
+    <a href="https://github.com/wangyuzz/agent-session-cleaner/releases/latest"><img src="https://img.shields.io/github/v/release/wangyuzz/agent-session-cleaner?label=release" alt="最新版本"></a>
+    <a href="https://github.com/wangyuzz/agent-session-cleaner/actions/workflows/ci.yml"><img src="https://github.com/wangyuzz/agent-session-cleaner/actions/workflows/ci.yml/badge.svg" alt="CI 状态"></a>
     <img src="https://img.shields.io/badge/platforms-macOS%20%7C%20Linux%20%7C%20Windows-blue" alt="支持 macOS、Linux 和 Windows">
     <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT 许可证"></a>
   </p>
@@ -17,13 +17,13 @@
 在 macOS 和 Linux 上安装或更新：
 
 ```bash
-curl -LsSf https://raw.githubusercontent.com/haowang02/agent-session-cleaner/main/install.sh | sh
+curl -LsSf https://raw.githubusercontent.com/wangyuzz/agent-session-cleaner/main/install.sh | sh
 ```
 
 在 Windows PowerShell 中安装或更新：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/haowang02/agent-session-cleaner/main/install.ps1 | iex"
+powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/wangyuzz/agent-session-cleaner/main/install.ps1 | iex"
 ```
 
 Windows 安装脚本会将程序安装到 `%LOCALAPPDATA%\Programs\agent-session-cleaner\bin`，并把该目录加入用户 `PATH`。首次安装后请打开一个新终端。

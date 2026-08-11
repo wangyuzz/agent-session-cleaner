@@ -1,7 +1,7 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-$Repository = "haowang02/agent-session-cleaner"
+$Repository = "wangyuzz/agent-session-cleaner"
 $Binary = "agent-session-cleaner"
 $Alias = "asc"
 

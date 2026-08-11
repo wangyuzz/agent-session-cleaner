@@ -2,7 +2,7 @@
 
 set -eu
 
-repo="haowang02/agent-session-cleaner"
+repo="wangyuzz/agent-session-cleaner"
 binary="agent-session-cleaner"
 alias_name="asc"
 
