@@ -1,6 +1,6 @@
 <div align="center">
   <h1>agent-session-cleaner</h1>
-  <p><strong>在一个终端中浏览、恢复和清理 Codex、Claude Code、OpenCode 与 Pi 的全部会话。</strong></p>
+  <p><strong>在一个终端中浏览、恢复和清理 Codex、Claude Code、OpenCode、Pi 与 Grok 的全部会话。</strong></p>
   <p>
     <a href="https://github.com/wangyuzz/agent-session-cleaner/releases/latest"><img src="https://img.shields.io/github/v/release/wangyuzz/agent-session-cleaner?label=release" alt="最新版本"></a>
     <a href="https://github.com/wangyuzz/agent-session-cleaner/actions/workflows/ci.yml"><img src="https://github.com/wangyuzz/agent-session-cleaner/actions/workflows/ci.yml/badge.svg" alt="CI 状态"></a>
@@ -44,20 +44,22 @@ asc codex
 asc claude
 asc opencode
 asc pi
+asc grok
 ```
 
-默认情况下，Codex 使用 `$CODEX_HOME` 或 `~/.codex`，Claude Code 使用 `$CLAUDE_CONFIG_DIR` 或 `~/.claude`，OpenCode 使用 `$XDG_DATA_HOME/opencode` 或 `~/.local/share/opencode`，Pi 使用 `$PI_CODING_AGENT_DIR` 或 `~/.pi/agent`。在 Windows 上，`~` 表示当前用户的配置文件目录。如需明确指定其他目录：
+默认情况下，Codex 使用 `$CODEX_HOME` 或 `~/.codex`，Claude Code 使用 `$CLAUDE_CONFIG_DIR` 或 `~/.claude`，OpenCode 使用 `$XDG_DATA_HOME/opencode` 或 `~/.local/share/opencode`，Pi 使用 `$PI_CODING_AGENT_DIR` 或 `~/.pi/agent`，Grok 使用 `$GROK_HOME` 或 `~/.grok`。在 Windows 上，`~` 表示当前用户的配置文件目录。如需明确指定其他目录：
 
 ```bash
 asc --codex-home /path/to/codex
 asc --claude-home /path/to/claude
 asc --opencode-home /path/to/opencode
 asc --pi-home /path/to/pi/agent
+asc --grok-home /path/to/grok
 ```
 
 OpenCode 路径必须指向名为 `opencode` 的数据目录本身，而不是它的上级目录；`opencode.db` 存在时会直接位于该目录中。
 
-会话列表和对话预览会直接读取已有数据。修改 Codex 会话和删除 OpenCode 会话需要相应的 CLI；CLI 不可用时，仍可进入该 Agent 的只读浏览模式。Claude Code 和 Pi 的删除操作会直接作用于各自的会话文件。
+会话列表和对话预览会直接读取已有数据。修改 Codex 会话和删除 OpenCode 会话需要相应的 CLI；CLI 不可用时，仍可进入该 Agent 的只读浏览模式。Claude Code、Pi 和 Grok 的删除操作会直接作用于各自的会话文件。
 
 ### Codex 命令性能
 
@@ -103,7 +105,7 @@ ASC_LANG=zh-CN asc
 | `u` | 取消归档当前会话或所有已选会话 | 仅 Codex |
 | `x`（Windows）、`D` | 删除所有已归档会话 | 仅 Codex |
 | `o`（Windows）、`O` | 删除所有孤立的子代理会话 | Codex 和 OpenCode |
-| `e`（Windows）、`E` | 删除所有空会话 | 仅 Claude Code |
+| `e`（Windows）、`E` | 删除所有空会话 | Claude Code 和 Grok |
 | `F5`（Windows）、`r` | 刷新会话列表 | 全部 Agent |
 | `F1`（Windows）、`h` | 按键说明 | 全部 Agent |
 | `!` | 开启或关闭危险模式；删除单个会话时跳过确认 | 全部 Agent |
@@ -121,6 +123,7 @@ codex resume <session-id>
 claude --resume <session-id>
 opencode -s <session-id>
 pi --session <session-id>
+grok --resume <session-id>
 ```
 
 ## 删除与归档
@@ -133,6 +136,7 @@ pi --session <session-id>
 - Claude Code 会直接删除会话记录及其相关数据。
 - OpenCode 的删除操作会交由 OpenCode CLI 执行。
 - Pi 会直接删除会话文件。
+- Grok 会直接删除会话目录。
 - 危险模式（`!`）下，删除单个会话时会跳过确认；批量删除仍会要求确认。
 
 ## 致谢

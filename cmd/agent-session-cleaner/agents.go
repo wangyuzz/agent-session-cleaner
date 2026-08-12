@@ -4,6 +4,7 @@ import (
 	"github.com/haowang02/agent-session-cleaner/internal/agent"
 	"github.com/haowang02/agent-session-cleaner/internal/agent/claude"
 	"github.com/haowang02/agent-session-cleaner/internal/agent/codex"
+	"github.com/haowang02/agent-session-cleaner/internal/agent/grok"
 	"github.com/haowang02/agent-session-cleaner/internal/agent/opencode"
 	"github.com/haowang02/agent-session-cleaner/internal/agent/pi"
 	"github.com/haowang02/agent-session-cleaner/internal/i18n"
@@ -45,6 +46,11 @@ var known = []struct {
 		id:       pi.ID,
 		homeHelp: i18n.CLIPiHome,
 		build:    func(opts options) agent.Agent { return pi.New(opts.homes[pi.ID]) },
+	},
+	{
+		id:       grok.ID,
+		homeHelp: i18n.CLIGrokHome,
+		build:    func(opts options) agent.Agent { return grok.New(opts.homes[grok.ID]) },
 	},
 }
 

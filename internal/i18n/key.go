@@ -228,6 +228,7 @@ const (
 	CLIClaudeHome
 	CLIOpenCodeHome
 	CLIPiHome
+	CLIGrokHome
 	CLIVersion
 	CLIHomeUnavailable
 

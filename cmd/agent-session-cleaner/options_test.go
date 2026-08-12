@@ -40,8 +40,8 @@ func TestParse(t *testing.T) {
 		},
 		{
 			name:  "every home at once",
-			args:  []string{"--codex-home", "/a", "--claude-home", "/b", "--opencode-home", "/c", "--pi-home", "/d"},
-			homes: map[string]string{"codex": "/a", "claude": "/b", "opencode": "/c", "pi": "/d"},
+			args:  []string{"--codex-home", "/a", "--claude-home", "/b", "--opencode-home", "/c", "--pi-home", "/d", "--grok-home", "/e"},
+			homes: map[string]string{"codex": "/a", "claude": "/b", "opencode": "/c", "pi": "/d", "grok": "/e"},
 		},
 		{
 			name:  "a single dash is short form",
@@ -160,7 +160,7 @@ func TestUsageNamesEveryAgent(t *testing.T) {
 
 	for _, want := range []string{
 		buildinfo.Name, "Usage:", "Options:", "-h, --help", "--version",
-		"--codex-home", "--claude-home", "--opencode-home", "--pi-home",
+		"--codex-home", "--claude-home", "--opencode-home", "--pi-home", "--grok-home",
 		"--codex-bin", "--codex-concurrency",
 	} {
 		if !strings.Contains(text, want) {
@@ -194,7 +194,7 @@ func TestUsageIsTranslated(t *testing.T) {
 func TestRegistryIsComplete(t *testing.T) {
 	t.Parallel()
 
-	if got := strings.Join(ids(), ","); got != "codex,claude,opencode,pi" {
+	if got := strings.Join(ids(), ","); got != "codex,claude,opencode,pi,grok" {
 		t.Errorf("ids() = %s", got)
 	}
 	opts := options{homes: map[string]string{"codex": "/tmp/codex"}, codexConcurrency: 8}

@@ -186,7 +186,7 @@ var chinese = map[Key]string{
 	OpenCodeHomeNotDataDir: "{agent} 数据目录必须命名为“opencode”：{path}",
 	OpenCodeBadSessionID:   "不是有效的 OpenCode 会话 ID：{session_id}",
 
-	CLIDescription:           "浏览、恢复和清理 Codex、Claude Code、OpenCode 与 Pi 的历史会话。",
+	CLIDescription:           "浏览、恢复和清理 Codex、Claude Code、OpenCode、Pi 与 Grok 的历史会话。",
 	CLIUsage:                 "用法：",
 	CLIArguments:             "位置参数：",
 	CLIOptions:               "选项：",
@@ -207,6 +207,7 @@ var chinese = map[Key]string{
 	CLIClaudeHome:            "Claude Code 会话数据目录（默认：$CLAUDE_CONFIG_DIR 或 ~/.claude）",
 	CLIOpenCodeHome:          "OpenCode 会话数据目录，目录名必须为 opencode（默认：$XDG_DATA_HOME/opencode 或 ~/.local/share/opencode）",
 	CLIPiHome:                "Pi Agent 数据目录（默认：$PI_CODING_AGENT_DIR 或 ~/.pi/agent）",
+	CLIGrokHome:              "Grok 会话数据目录（默认：$GROK_HOME 或 ~/.grok）",
 	CLIVersion:               "显示版本号并退出",
 	CLIHomeUnavailable:       "{agent} 会话数据目录不存在或不是目录：{path}",
 }

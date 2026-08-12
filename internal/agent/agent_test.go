@@ -7,6 +7,7 @@ import (
 	"github.com/haowang02/agent-session-cleaner/internal/agent"
 	"github.com/haowang02/agent-session-cleaner/internal/agent/claude"
 	"github.com/haowang02/agent-session-cleaner/internal/agent/codex"
+	"github.com/haowang02/agent-session-cleaner/internal/agent/grok"
 	"github.com/haowang02/agent-session-cleaner/internal/agent/opencode"
 	"github.com/haowang02/agent-session-cleaner/internal/agent/pi"
 )
@@ -18,6 +19,7 @@ func every() []agent.Agent {
 		claude.New("/tmp/claude"),
 		opencode.New("/tmp/data/opencode"),
 		pi.New("/tmp/pi/agent"),
+		grok.New("/tmp/grok"),
 	}
 }
 
