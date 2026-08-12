@@ -37,6 +37,7 @@ func newFake(sessions ...session.Session) *fake {
 			Home: "/tmp/fake", DefaultClient: "cli",
 			EmptyLabel: i18n.EmptySessions, OrphanLabel: i18n.OrphanSessions,
 			BulkConcurrency: 4,
+			Resume:          "fake --resume %s",
 		},
 		// A copy: deleting from one fake rewrites its listing in place, and
 		// callers routinely build several fakes from one slice of sessions.

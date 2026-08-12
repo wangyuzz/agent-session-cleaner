@@ -98,7 +98,8 @@ ASC_LANG=zh-CN asc
 | `?` | 反向搜索 | 全部 Agent |
 | `F3` / `Shift+F3`（Windows）、`n` / `N` | 下一个 / 上一个匹配项 | 全部 Agent |
 | `Alt+C` | 切换是否区分大小写；默认不区分大小写 | 全部 Agent |
-| `c` | 复制当前会话的 ID | 全部 Agent |
+| `c` | 复制当前会话的恢复命令 | 全部 Agent |
+| `s` | 将当前会话或已选会话导出为 Markdown | 全部 Agent |
 | `w`（Windows）、`y` | 复制当前会话的工作目录 | 全部 Agent |
 | `Delete`（Windows）、`d` | 删除当前会话或所有已选会话 | 全部 Agent |
 | `a` | 归档当前会话或所有已选会话 | 仅 Codex |
@@ -116,15 +117,9 @@ ASC_LANG=zh-CN asc
 
 ## 恢复会话
 
-如需恢复当前会话，按 `c` 复制其 ID，然后将其粘贴到对应 Agent 的命令中：
+如需恢复当前会话，按 `c` 复制可直接运行的命令（例如 `grok --resume <session-id>`），再粘贴到终端。
 
-```bash
-codex resume <session-id>
-claude --resume <session-id>
-opencode -s <session-id>
-pi --session <session-id>
-grok --resume <session-id>
-```
+按 `Tab` 把焦点切到对话区后，可用鼠标选中文字复制。按 `s` 可将当前会话或已选会话导出为当前目录下的 Markdown 文件。
 
 ## 删除与归档
 

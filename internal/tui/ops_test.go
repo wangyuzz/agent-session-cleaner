@@ -219,9 +219,10 @@ func TestWritingKeysVanishWithoutTheAgentsCommand(t *testing.T) {
 	omitsBinding(t, m, deleteAction)
 	omitsBinding(t, m, pickAction)
 	omitsBinding(t, m, dangerAction)
-	// Browsing and copying session metadata need no agent CLI.
+	// Browsing, copying and exporting need no agent CLI.
 	containsBinding(t, m, copySessionIDAction)
 	containsBinding(t, m, copyWorkingDirectoryAction)
+	containsBinding(t, m, exportAction)
 	containsBinding(t, m, searchAction)
 }
 

@@ -10,6 +10,7 @@ package agent
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/haowang02/agent-session-cleaner/internal/i18n"
 	"github.com/haowang02/agent-session-cleaner/internal/session"
@@ -41,6 +42,17 @@ type Meta struct {
 	// will tolerate being worked on at once. Everything an agent stores is
 	// shared state, and each agent knows what its own tooling stands up to.
 	BulkConcurrency int
+	// Resume is the command that continues a session, with %s standing for
+	// the session id. Empty means only the id is copied.
+	Resume string
+}
+
+// ResumeCommand is what to paste to continue this session.
+func (m Meta) ResumeCommand(id string) string {
+	if m.Resume == "" {
+		return id
+	}
+	return fmt.Sprintf(m.Resume, id)
 }
 
 // Agent is one coding agent's session store.

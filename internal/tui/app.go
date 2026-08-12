@@ -193,6 +193,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case copiedClipboardMsg:
 		return m, m.copiedToClipboard(msg)
 
+	case exportedMsg:
+		return m, m.exported(msg)
+
 	case tea.KeyPressMsg:
 		return m, m.press(msg)
 
@@ -289,6 +292,8 @@ func (m *Model) command(a action) tea.Cmd {
 		return m.copySessionID()
 	case copyWorkingDirectoryAction:
 		return m.copyWorkingDirectory()
+	case exportAction:
+		return m.exportMarkdown()
 	case archiveAction:
 		return m.archive()
 	case unarchiveAction:

@@ -192,11 +192,12 @@ func (m *Model) copySessionID() tea.Cmd {
 		m.warn(i18n.NoCurrentSession)
 		return nil
 	}
+	command := m.meta.ResumeCommand(current.ID)
 	return m.copyToClipboard(
-		current.ID,
+		command,
 		i18n.CopyingSessionID,
 		i18n.CopySessionIDSuccess,
-		i18n.Args{"session_id": current.ID},
+		i18n.Args{"command": command},
 	)
 }
 

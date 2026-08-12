@@ -55,10 +55,12 @@ func TestFooterRenamesKeysForTheSelection(t *testing.T) {
 	containsBinding(t, m, deleteAction)
 	containsBinding(t, m, copySessionIDAction)
 	containsBinding(t, m, copyWorkingDirectoryAction)
+	containsBinding(t, m, exportAction)
 
 	press(t, m, "space")
 	containsBinding(t, m, deleteAction)
 	containsBinding(t, m, archiveAction)
+	containsBinding(t, m, exportAction)
 	// Copying acts on the row under the cursor, which is no longer what the keys
 	// are about; the sweeps act on a different set from the one on screen.
 	omitsBinding(t, m, copySessionIDAction)

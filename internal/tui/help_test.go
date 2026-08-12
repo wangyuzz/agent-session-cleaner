@@ -93,6 +93,7 @@ func TestHelpAndFooterAgree(t *testing.T) {
 		{deleteAction, i18n.HelpDelete},
 		{copySessionIDAction, i18n.HelpCopySessionID},
 		{copyWorkingDirectoryAction, i18n.HelpCopyCwd},
+		{exportAction, i18n.HelpExport},
 	}
 
 	for _, test := range cases {
@@ -187,6 +188,7 @@ func TestHelpUsesTheModelsKeyMap(t *testing.T) {
 	t.Parallel()
 
 	m := start(t, newFake(tree()...))
+	drive(t, m, send(t, m, tea.WindowSizeMsg{Width: 120, Height: 40}))
 	m.keymap = keyMapFor("windows")
 	press(t, m, "h")
 	for _, want := range []string{"Ctrl+F, /", "F3, n / Shift+F3, N", "Del, d", "F5, r", "F1, h"} {

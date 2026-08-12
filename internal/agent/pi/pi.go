@@ -116,6 +116,7 @@ func (a *Agent) Meta() agent.Meta {
 		OrphanLabel: 0,
 		// Each deletion is one unlink on a path of its own.
 		BulkConcurrency: 4,
+		Resume:          "pi --session %s",
 	}
 }
 

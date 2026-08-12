@@ -137,6 +137,7 @@ func (a *Agent) Meta() agent.Meta {
 		// time measured 130ms per session against 470ms one at a time, and no
 		// slower than eight. Sixteen starts hitting lock timeouts.
 		BulkConcurrency: 4,
+		Resume:          "opencode -s %s",
 	}
 }
 

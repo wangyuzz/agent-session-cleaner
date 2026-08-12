@@ -120,6 +120,7 @@ func (a *Agent) Meta() agent.Meta {
 		OrphanLabel: 0,
 		// Each deletion is one RemoveAll on a path of its own.
 		BulkConcurrency: 4,
+		Resume:          "grok --resume %s",
 	}
 }
 

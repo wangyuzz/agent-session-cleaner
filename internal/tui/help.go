@@ -39,6 +39,7 @@ var helpSections = []helpSection{
 		{actions: []action{pickAction}, what: i18n.HelpSelectToggle, gated: pickAction},
 		{actions: []action{copySessionIDAction}, what: i18n.HelpCopySessionID, gated: copySessionIDAction},
 		{actions: []action{copyWorkingDirectoryAction}, what: i18n.HelpCopyCwd, gated: copyWorkingDirectoryAction},
+		{actions: []action{exportAction}, what: i18n.HelpExport, gated: exportAction},
 		{actions: []action{deleteAction}, what: i18n.HelpDelete, gated: deleteAction},
 		{actions: []action{archiveAction}, what: i18n.HelpArchive, gated: archiveAction},
 		{actions: []action{unarchiveAction}, what: i18n.HelpUnarchive, gated: unarchiveAction},

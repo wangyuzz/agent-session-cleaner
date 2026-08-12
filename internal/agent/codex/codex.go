@@ -158,6 +158,7 @@ func (a *Agent) Meta() agent.Meta {
 		// Archiving moves one file and deleting removes one file, so a batch
 		// only contends for the directory itself.
 		BulkConcurrency: a.bulkConcurrency,
+		Resume:          "codex resume %s",
 	}
 }
 

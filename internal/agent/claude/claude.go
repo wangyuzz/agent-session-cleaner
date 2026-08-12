@@ -98,6 +98,7 @@ func (a *Agent) Meta() agent.Meta {
 		OrphanLabel: 0,
 		// Each deletion is a few filesystem calls on paths of its own.
 		BulkConcurrency: 4,
+		Resume:          "claude --resume %s",
 	}
 }
 

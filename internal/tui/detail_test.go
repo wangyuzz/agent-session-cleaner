@@ -185,8 +185,14 @@ func TestFocusIsVisibleOnScreen(t *testing.T) {
 		t.Fatalf("the list holds focus but nothing says so: fill %q rule %q",
 			onTheList, listRule)
 	}
+	if m.View().MouseMode != tea.MouseModeCellMotion {
+		t.Error("the list should keep mouse tracking for click and drag")
+	}
 
 	press(t, m, "tab")
+	if m.View().MouseMode != tea.MouseModeNone {
+		t.Error("conversation focus should release the mouse so text can be copied")
+	}
 
 	// The rule lights up rather than thickening: the same glyph in every
 	// state, so the column cannot look like it changed shape.

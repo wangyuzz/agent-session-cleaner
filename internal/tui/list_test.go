@@ -396,8 +396,8 @@ func TestFooterWrapsRatherThanClipping(t *testing.T) {
 
 	shown := stripped(strings.Join(lines, "\n"))
 	for _, want := range []string{
-		"Archive", "Unarchive", "Delete", "Copy session ID", "Copy working directory",
-		"Delete archived", "Delete empty", "Delete orphans", "Danger mode",
+		"Archive", "Unarchive", "Delete", "Copy resume command", "Copy working directory",
+		"Export Markdown", "Delete archived", "Delete empty", "Delete orphans", "Danger mode",
 		"Select sessions", "Search", "Match case", "Refresh", "Shortcuts", "Quit",
 	} {
 		if !strings.Contains(shown, want) {
@@ -411,7 +411,7 @@ func TestChineseFooterAndStatusAreTranslated(t *testing.T) {
 
 	m := startWithPrinter(t, &archivingFake{newFake(tree()...)}, i18n.New(i18n.Chinese))
 	for _, want := range []string{
-		"归档", "删除", "复制会话 ID", "复制工作目录", "危险模式",
+		"归档", "删除", "复制恢复命令", "复制工作目录", "导出 Markdown", "危险模式",
 		"选择会话", "搜索", "区分大小写", "刷新列表", "按键说明", "退出",
 	} {
 		contains(t, m, want)
@@ -557,7 +557,7 @@ func TestFooterOffersOnlyWhatWouldDoSomething(t *testing.T) {
 		t.Parallel()
 		m := start(t, newFake())
 		for _, action := range []action{
-			deleteAction, copySessionIDAction, copyWorkingDirectoryAction, pickAction, searchAction,
+			deleteAction, copySessionIDAction, copyWorkingDirectoryAction, exportAction, pickAction, searchAction,
 		} {
 			omitsBinding(t, m, action)
 		}

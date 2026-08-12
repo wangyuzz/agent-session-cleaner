@@ -47,6 +47,10 @@ func TestEveryAgentDescribesItself(t *testing.T) {
 				t.Error("a batch could never make progress")
 			case meta.Shortcut == 0:
 				t.Error("no chooser shortcut")
+			case meta.Resume == "":
+				t.Error("no resume command")
+			case meta.ResumeCommand("ID") == meta.Resume || meta.ResumeCommand("ID") == "ID":
+				t.Error("resume command does not include the session id")
 			}
 		})
 

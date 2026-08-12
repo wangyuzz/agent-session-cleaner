@@ -32,7 +32,12 @@ func (m *Model) View() tea.View {
 	view.AltScreen = true
 	// Clicking a row moves the cursor to it, clicking it again picks it out,
 	// and dragging across rows applies one selection state to the range.
+	// The list needs cell motion for click and drag. The conversation pane
+	// turns tracking off so the terminal can select text for a native copy.
 	view.MouseMode = tea.MouseModeCellMotion
+	if m.focus == focusDetail && !m.help && m.dialog == nil && !m.search.active {
+		view.MouseMode = tea.MouseModeNone
+	}
 	view.WindowTitle = m.print.T(i18n.AppTitle, i18n.Args{"agent": m.meta.Label})
 	if m.search.active {
 		view.Cursor = m.search.input.Cursor()

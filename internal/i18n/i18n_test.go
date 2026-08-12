@@ -60,8 +60,8 @@ func TestT(t *testing.T) {
 	if got := p.T(Today); got != "Today" {
 		t.Errorf("T(Today) = %q", got)
 	}
-	got := p.T(CopySessionIDSuccess, Args{"session_id": "abc"})
-	if want := "Session ID copied to clipboard: abc"; got != want {
+	got := p.T(CopySessionIDSuccess, Args{"command": "grok --resume abc"})
+	if want := "Resume command copied: grok --resume abc"; got != want {
 		t.Errorf("T(CopySessionIDSuccess) = %q, want %q", got, want)
 	}
 	// A name with no value stays visible instead of leaving a hole.

@@ -98,7 +98,8 @@ The footer shows the shortcuts available for the current agent and installation.
 | `?` | Search backward | All agents |
 | `F3` / `Shift+F3` (Windows), `n` / `N` | Jump to the next / previous match | All agents |
 | `Alt+C` | Toggle case-sensitive search; search ignores case by default | All agents |
-| `c` | Copy the current session ID | All agents |
+| `c` | Copy the resume command for the current session | All agents |
+| `s` | Export the current session or selected sessions as Markdown | All agents |
 | `w` (Windows), `y` | Copy the current session's working directory | All agents |
 | `Delete` (Windows), `d` | Delete the current session or selected sessions | All agents |
 | `a` | Archive the current session or selected sessions | Codex only |
@@ -116,15 +117,9 @@ Press Space or double-click to select or deselect a session. Selecting a session
 
 ## Resume a session
 
-To resume the current session, press `c` to copy its ID, then paste it into the corresponding agent command:
+To resume the current session, press `c` to copy the ready-to-run command (for example `grok --resume <session-id>`), then paste it into a terminal.
 
-```bash
-codex resume <session-id>
-claude --resume <session-id>
-opencode -s <session-id>
-pi --session <session-id>
-grok --resume <session-id>
-```
+Press `Tab` to focus the conversation pane, then select text with the mouse to copy it. Press `s` to export the current session, or the selected sessions, as a Markdown file in the current directory.
 
 ## Deletion and archiving
 
