@@ -12,6 +12,8 @@
 
 ![Interface preview](./assets/screenshots/example.png)
 
+This is a maintained fork of [haowang02/agent-session-cleaner](https://github.com/haowang02/agent-session-cleaner). It adds Windows command optimizations and native keyboard controls, Grok session support, resume-command copying, and Markdown exports. The original project and this fork are distributed under the MIT license.
+
 ## Install
 
 Install or update on macOS and Linux:
@@ -121,6 +123,26 @@ To resume the current session, press `c` to copy the ready-to-run command (for e
 
 Press `Tab` to focus the conversation pane, then select text with the mouse to copy it. Press `s` to export the current session, or the selected sessions, as a Markdown file in the current directory.
 
+## Export conversations
+
+Press `s` to export the current session. When sessions are selected, the export combines them into one Markdown file. To save exports in an existing directory instead of the working directory:
+
+```bash
+asc codex --export-dir ~/session-exports
+```
+
+On Windows, for example:
+
+```powershell
+asc codex --export-dir "$env:USERPROFILE\Documents"
+```
+
+The `ASC_EXPORT_DIR` environment variable sets a default directory; `--export-dir` takes precedence. Create the directory before exporting. The status bar shows the saved file's full path or an error.
+
+Exports preserve existing files by adding numbered suffixes (`-2`, `-3`, and so on), including when exports run concurrently. File names support Chinese text and avoid invalid Windows characters and reserved device names. Failed or cancelled exports remove their incomplete output. On macOS and Linux, new exports are readable and writable only by their owner; Windows uses the destination directory's inherited permissions.
+
+Exports contain the same human and assistant messages as the session preview, rather than a full transcript backup. Each message is limited to 8,000 characters, with an explicit note when text is truncated. Image attachments are represented by counts, and tool traffic is omitted.
+
 ## Deletion and archiving
 
 > [!WARNING]
@@ -136,4 +158,7 @@ Press `Tab` to focus the conversation pane, then select text with the mouse to c
 
 ## Acknowledgements
 
+- [haowang02/agent-session-cleaner](https://github.com/haowang02/agent-session-cleaner) — the original project
 - [LINUX DO](https://linux.do/) — a community for builders and curious minds
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for local builds and validation.

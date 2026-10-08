@@ -112,6 +112,9 @@ func TestParseRefusals(t *testing.T) {
 		{"a help flag with a value", []string{"--help=yes"}, "unknown option"},
 		{"a version flag with a value", []string{"--version=1"}, "unknown option"},
 		{"a missing Codex binary", []string{"--codex-bin"}, "needs a value"},
+		{"a missing export directory", []string{"--export-dir"}, "needs a value"},
+		{"an empty export directory", []string{"--export-dir="}, "needs a value"},
+		{"a blank export directory", []string{"--export-dir", " "}, "needs a value"},
 		{"a missing Codex concurrency", []string{"--codex-concurrency"}, "needs a value"},
 		{"zero Codex concurrency", []string{"--codex-concurrency=0"}, "positive integer"},
 		{"non-numeric Codex concurrency", []string{"--codex-concurrency=many"}, "positive integer"},
@@ -139,7 +142,7 @@ func TestParseExpandsHome(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
 
-	opts, err := parse([]string{"--codex-home", "~/.codex", "--codex-bin", "~/bin/codex"})
+	opts, err := parse([]string{"--codex-home", "~/.codex", "--codex-bin", "~/bin/codex", "--export-dir", "~/exports"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,6 +151,32 @@ func TestParseExpandsHome(t *testing.T) {
 	}
 	if want := filepath.Join(home, "bin", "codex"); opts.codexBin != want {
 		t.Errorf("binary = %q, want %q", opts.codexBin, want)
+	}
+	if want := filepath.Join(home, "exports"); opts.exportDir != want {
+		t.Errorf("export directory = %q, want %q", opts.exportDir, want)
+	}
+}
+
+func TestExportDirectoryOptionOverridesEnvironment(t *testing.T) {
+	t.Parallel()
+	for _, args := range [][]string{
+		{"--export-dir", "exports", "codex"},
+		{"codex", "--export-dir=exports"},
+	} {
+		opts, err := parse(args)
+		if err != nil {
+			t.Fatal(err)
+		}
+		getenv := func(string) string { return "environment-exports" }
+		if got := exportDirectory(opts, getenv); got != "exports" {
+			t.Errorf("explicit export directory = %q", got)
+		}
+		if got := exportDirectory(options{}, getenv); got != "environment-exports" {
+			t.Errorf("environment export directory = %q", got)
+		}
+		if got := exportDirectory(options{}, func(string) string { return "" }); got != "" {
+			t.Errorf("default export directory = %q", got)
+		}
 	}
 }
 
@@ -161,7 +190,7 @@ func TestUsageNamesEveryAgent(t *testing.T) {
 	for _, want := range []string{
 		buildinfo.Name, "Usage:", "Options:", "-h, --help", "--version",
 		"--codex-home", "--claude-home", "--opencode-home", "--pi-home", "--grok-home",
-		"--codex-bin", "--codex-concurrency",
+		"--codex-bin", "--codex-concurrency", "--export-dir",
 	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("usage does not mention %q:\n%s", want, text)

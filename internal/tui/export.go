@@ -1,13 +1,18 @@
 package tui
 
 import (
+	"bufio"
+	"context"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 	"unicode"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -22,7 +27,7 @@ type exportedMsg struct {
 }
 
 // exportMarkdown writes the current session, or every selected session, as
-// a Markdown file in the working directory.
+// a Markdown file in the configured export directory.
 func (m *Model) exportMarkdown() tea.Cmd {
 	targets := m.exportTargets()
 	if len(targets) == 0 {
@@ -42,28 +47,33 @@ func (m *Model) exportMarkdown() tea.Cmd {
 	meta := m.meta
 	you := m.print.T(i18n.You)
 	now := time.Now()
+	dir := m.exportDir
 	return func() tea.Msg {
-		var parts []string
-		for _, s := range targets {
-			messages, ok := cached[s.ID]
-			if !ok {
-				found, err := target.Messages(ctx, s)
-				if err != nil {
-					return exportedMsg{err: err}
+		path, err := writeExport(ctx, dir, exportFileName(targets, now), func(out io.Writer) error {
+			for i, s := range targets {
+				if err := ctx.Err(); err != nil {
+					return err
 				}
-				messages = found
+				messages, ok := cached[s.ID]
+				if !ok {
+					found, err := target.Messages(ctx, s)
+					if err != nil {
+						return err
+					}
+					messages = found
+				}
+				if i > 0 {
+					if _, err := io.WriteString(out, "\n---\n\n"); err != nil {
+						return err
+					}
+				}
+				if _, err := io.WriteString(out, sessionMarkdown(s, messages, meta.ResumeCommand(s.ID), you, meta.Reply)); err != nil {
+					return err
+				}
 			}
-			parts = append(parts, sessionMarkdown(s, messages, meta.ResumeCommand(s.ID), you, meta.Reply))
-		}
-
-		dir, err := os.Getwd()
+			return nil
+		})
 		if err != nil {
-			return exportedMsg{err: err}
-		}
-		name := exportFileName(targets, now)
-		path := uniquePath(dir, name)
-		body := strings.Join(parts, "\n---\n\n")
-		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 			return exportedMsg{err: err}
 		}
 		return exportedMsg{path: path, count: len(targets)}
@@ -94,7 +104,7 @@ func (m *Model) exportTargets() []session.Session {
 
 func sessionMarkdown(s session.Session, messages []session.Message, resume, you, reply string) string {
 	var b strings.Builder
-	title := strings.TrimSpace(s.Title)
+	title := strings.Join(strings.Fields(s.Title), " ")
 	if title == "" {
 		title = s.ID
 	}
@@ -131,6 +141,9 @@ func sessionMarkdown(s session.Session, messages []session.Message, resume, you,
 		if message.Images > 0 {
 			fmt.Fprintf(&b, "\n*%d image(s)*\n", message.Images)
 		}
+		if message.Truncated > 0 {
+			fmt.Fprintf(&b, "\n*Preview truncated: %d character(s) omitted.*\n", message.Truncated)
+		}
 		b.WriteByte('\n')
 	}
 	return b.String()
@@ -144,45 +157,118 @@ func exportFileName(sessions []session.Session, now time.Time) string {
 }
 
 func safeFileName(title, id string) string {
-	title = strings.TrimSpace(session.Condense(title, 40))
+	name := safeFilePart(session.Condense(title, 40), 120)
+	if name == "" {
+		name = "session"
+	}
+	if suffix := safeFilePart(id, 80); suffix != "" {
+		name += "-" + suffix
+	}
+	// Windows reserves these names even when followed by an extension.
+	base := strings.ToUpper(strings.SplitN(name, ".", 2)[0])
+	switch base {
+	case "CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$":
+		name = "session-" + name
+	default:
+		if strings.HasPrefix(base, "COM") || strings.HasPrefix(base, "LPT") {
+			number := base[3:]
+			if utf8.RuneCountInString(number) == 1 && strings.ContainsAny(number, "123456789¹²³") {
+				name = "session-" + name
+			}
+		}
+	}
+	return name
+}
+
+func safeFilePart(value string, maxBytes int) string {
 	var b strings.Builder
-	for _, r := range title {
+	for _, r := range strings.TrimSpace(value) {
 		switch {
 		case r < 32 || r == 0x7f:
 			continue
 		case strings.ContainsRune(`<>:"/\|?*`, r):
-			b.WriteByte('-')
+			r = '-'
 		case unicode.IsSpace(r):
-			b.WriteByte('-')
-		default:
-			b.WriteRune(r)
+			r = '-'
 		}
+		if b.Len()+utf8.RuneLen(r) > maxBytes {
+			break
+		}
+		b.WriteRune(r)
 	}
 	name := strings.Trim(b.String(), ".-")
 	for strings.Contains(name, "--") {
 		name = strings.ReplaceAll(name, "--", "-")
 	}
-	if name == "" {
-		name = "session"
-	}
-	if id != "" {
-		name += "-" + id
-	}
 	return name
 }
 
-func uniquePath(dir, name string) string {
-	path := filepath.Join(dir, name)
-	if _, err := os.Stat(path); err != nil {
-		return path
+// writeExport claims a filename before writing, so concurrent exports cannot
+// overwrite one another. Failed or cancelled exports leave no partial file.
+func writeExport(ctx context.Context, dir, name string, write func(io.Writer) error) (path string, err error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
 	}
+	if dir == "" {
+		dir = "."
+	}
+	dir, err = filepath.Abs(dir)
+	if err != nil {
+		return "", err
+	}
+	file, err := createExport(ctx, dir, name)
+	if err != nil {
+		return "", err
+	}
+	path = file.Name()
+	defer func() {
+		closeErr := file.Close()
+		err = errors.Join(err, closeErr)
+		if err != nil {
+			err = errors.Join(err, os.Remove(path))
+			path = ""
+		}
+	}()
+	buffer := bufio.NewWriterSize(exportWriter{ctx: ctx, out: file}, 64<<10)
+	if err = write(buffer); err == nil {
+		err = ctx.Err()
+	}
+	if err == nil {
+		err = buffer.Flush()
+	}
+	return path, err
+}
+
+type exportWriter struct {
+	ctx context.Context
+	out io.Writer
+}
+
+func (w exportWriter) Write(p []byte) (int, error) {
+	if err := w.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return w.out.Write(p)
+}
+
+func createExport(ctx context.Context, dir, name string) (*os.File, error) {
 	ext := filepath.Ext(name)
 	stem := strings.TrimSuffix(name, ext)
-	for i := 2; i < 1000; i++ {
-		candidate := filepath.Join(dir, fmt.Sprintf("%s-%d%s", stem, i, ext))
-		if _, err := os.Stat(candidate); err != nil {
-			return candidate
+	for i := 1; i <= 10000; i++ {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		candidate := name
+		if i > 1 {
+			candidate = fmt.Sprintf("%s-%d%s", stem, i, ext)
+		}
+		file, err := os.OpenFile(filepath.Join(dir, candidate), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+		if err == nil {
+			return file, nil
+		}
+		if !errors.Is(err, os.ErrExist) {
+			return nil, err
 		}
 	}
-	return filepath.Join(dir, fmt.Sprintf("%s-%d%s", stem, time.Now().UnixNano(), ext))
+	return nil, fmt.Errorf("no available export filename for %q", name)
 }

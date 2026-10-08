@@ -12,6 +12,8 @@
 
 ![界面预览](./assets/screenshots/example.zh-CN.png)
 
+这是基于 [haowang02/agent-session-cleaner](https://github.com/haowang02/agent-session-cleaner) 持续维护的 Fork，增加了 Windows 命令性能优化与原生快捷键、Grok 会话支持、恢复命令复制和 Markdown 导出。原项目与本 Fork 均采用 MIT 许可证。
+
 ## 安装
 
 在 macOS 和 Linux 上安装或更新：
@@ -121,6 +123,26 @@ ASC_LANG=zh-CN asc
 
 按 `Tab` 把焦点切到对话区后，可用鼠标选中文字复制。按 `s` 可将当前会话或已选会话导出为当前目录下的 Markdown 文件。
 
+## 导出对话
+
+按 `s` 导出当前会话；有多选会话时，会合并到一个 Markdown 文件中。如需保存到指定的已有目录：
+
+```bash
+asc codex --export-dir ~/session-exports
+```
+
+Windows 示例：
+
+```powershell
+asc codex --export-dir "$env:USERPROFILE\Documents"
+```
+
+也可以通过环境变量 `ASC_EXPORT_DIR` 设置默认导出目录，命令行的 `--export-dir` 优先。请先创建目标目录；状态栏会显示保存文件的完整路径或错误信息。
+
+同名文件会自动添加 `-2`、`-3` 等后缀，并发导出也不会覆盖已有文件。文件名支持中文，并会处理 Windows 不允许的字符和保留设备名。导出失败或取消时，会清理未完成的文件。macOS 和 Linux 上的新导出文件仅允许文件所有者读写；Windows 使用目标目录继承的权限。
+
+导出内容与会话预览中的用户和助手消息一致，不是完整原始记录的备份。每条消息最多保留 8,000 个字符，超过时会明确标注被省略的字符数。图片以数量表示，工具调用内容不会导出。
+
 ## 删除与归档
 
 > [!WARNING]
@@ -136,4 +158,7 @@ ASC_LANG=zh-CN asc
 
 ## 致谢
 
+- [haowang02/agent-session-cleaner](https://github.com/haowang02/agent-session-cleaner)——原项目
 - [LINUX DO](https://linux.do/)——面向创造者与好奇者的社区
+
+本地构建和验证方法见 [CONTRIBUTING.md](./CONTRIBUTING.md)。

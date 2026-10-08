@@ -46,13 +46,14 @@ var _ tea.Model = (*Model)(nil)
 type Model struct {
 	// ctx bounds every agent call. Bubble Tea gives commands no context of
 	// their own, so the program's one lives here.
-	ctx      context.Context
-	agent    agent.Agent
-	archiver agent.Archiver // nil where this agent cannot set sessions aside
-	meta     agent.Meta
-	print    *i18n.Printer
-	theme    theme.Theme
-	keymap   keyMap
+	ctx       context.Context
+	agent     agent.Agent
+	archiver  agent.Archiver // nil where this agent cannot set sessions aside
+	meta      agent.Meta
+	print     *i18n.Printer
+	theme     theme.Theme
+	keymap    keyMap
+	exportDir string
 
 	width, height int
 
@@ -102,7 +103,16 @@ type Model struct {
 	helpTop int
 }
 
-func New(ctx context.Context, target agent.Agent, print *i18n.Printer) *Model {
+// Option configures the session browser.
+type Option func(*Model)
+
+// WithExportDirectory sets an existing directory for Markdown exports.
+// An empty directory keeps the default of the working directory.
+func WithExportDirectory(dir string) Option {
+	return func(m *Model) { m.exportDir = dir }
+}
+
+func New(ctx context.Context, target agent.Agent, print *i18n.Printer, opts ...Option) *Model {
 	input := textinput.New()
 	input.Prompt = ""
 	// The terminal's own cursor is reported in the view, so the drawn stand-in
@@ -126,6 +136,9 @@ func New(ctx context.Context, target agent.Agent, print *i18n.Printer) *Model {
 		search:   search{input: input, direction: 1},
 
 		dragStart: -1,
+	}
+	for _, opt := range opts {
+		opt(m)
 	}
 	m.restyle(true)
 	return m

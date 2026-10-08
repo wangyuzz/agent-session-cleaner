@@ -65,7 +65,8 @@ func run(ctx context.Context, args []string, print *i18n.Printer, out, _ io.Writ
 		return err
 	}
 
-	_, err = tea.NewProgram(tui.New(ctx, target, print), tea.WithContext(ctx)).Run()
+	model := tui.New(ctx, target, print, tui.WithExportDirectory(exportDirectory(opts, os.Getenv)))
+	_, err = tea.NewProgram(model, tea.WithContext(ctx)).Run()
 	return err
 }
 
