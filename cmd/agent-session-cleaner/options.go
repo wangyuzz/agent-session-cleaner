@@ -23,6 +23,7 @@ type options struct {
 	homes            map[string]string
 	codexBin         string
 	codexConcurrency int
+	exportDir        string
 	help             bool
 	version          bool
 }
@@ -61,6 +62,14 @@ func parse(args []string) (options, error) {
 			}
 			i = next
 			opts.codexBin = agent.ExpandHome(resolved)
+			continue
+		case "export-dir":
+			resolved, next, err := optionValue(args, i, arg, value, hasValue)
+			if err != nil || strings.TrimSpace(resolved) == "" {
+				return opts, i18n.Errorf(i18n.CLIOptionNeedsValue, i18n.Args{"name": "--export-dir"})
+			}
+			i = next
+			opts.exportDir = agent.ExpandHome(resolved)
 			continue
 		case "codex-concurrency":
 			resolved, next, err := optionValue(args, i, arg, value, hasValue)
@@ -118,6 +127,13 @@ func isAgent(name string) bool {
 	return false
 }
 
+func exportDirectory(opts options, getenv func(string) string) string {
+	if opts.exportDir != "" {
+		return opts.exportDir
+	}
+	return agent.ExpandHome(getenv("ASC_EXPORT_DIR"))
+}
+
 // usage prints what this program takes, in the user's language.
 func usage(out io.Writer, print *i18n.Printer) {
 	type entry struct{ flag, what string }
@@ -129,6 +145,10 @@ func usage(out io.Writer, print *i18n.Printer) {
 		})
 	}
 	entries = append(entries,
+		entry{
+			flag: "    --export-dir " + print.T(i18n.CLIDirectory),
+			what: print.T(i18n.CLIExportDir),
+		},
 		entry{
 			flag: "    --codex-bin " + print.T(i18n.CLIFile),
 			what: print.T(i18n.CLICodexBin),

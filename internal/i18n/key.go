@@ -231,6 +231,7 @@ const (
 	CLICodexHome
 	CLICodexBin
 	CLICodexConcurrency
+	CLIExportDir
 	CLIClaudeHome
 	CLIOpenCodeHome
 	CLIPiHome

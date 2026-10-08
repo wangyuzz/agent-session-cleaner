@@ -210,6 +210,7 @@ var english = map[Key]string{
 	CLICodexHome:             "Codex session data directory (default: $CODEX_HOME or ~/.codex)",
 	CLICodexBin:              "Codex executable (default: $ASC_CODEX_BIN, native npm binary on Windows, or codex on PATH)",
 	CLICodexConcurrency:      "maximum simultaneous Codex changes (default: $ASC_CODEX_CONCURRENCY or 4)",
+	CLIExportDir:             "existing directory for Markdown exports (default: $ASC_EXPORT_DIR or working directory)",
 	CLIClaudeHome:            "Claude Code session data directory (default: $CLAUDE_CONFIG_DIR or ~/.claude)",
 	CLIOpenCodeHome:          "OpenCode session data directory; must be named opencode (default: $XDG_DATA_HOME/opencode or ~/.local/share/opencode)",
 	CLIPiHome:                "Pi agent data directory (default: $PI_CODING_AGENT_DIR or ~/.pi/agent)",

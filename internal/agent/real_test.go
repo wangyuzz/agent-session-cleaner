@@ -17,9 +17,12 @@ import (
 
 // These read the session trees on this machine, to prove the parsers cope with
 // data as it is actually written rather than only with fixtures. They never
-// write anything, and skip themselves where there is nothing to read — which
-// is what a CI runner looks like.
+// write anything. They are opt-in so a normal test run stays independent of
+// private local data and of which agent versions happen to be installed.
 func TestRealSessionTrees(t *testing.T) {
+	if os.Getenv("ASC_TEST_REAL_SESSIONS") != "1" {
+		t.Skip("set ASC_TEST_REAL_SESSIONS=1 to inspect local agent session trees")
+	}
 	t.Parallel()
 
 	for _, target := range []agent.Agent{codex.New(""), claude.New(""), opencode.New(""), pi.New(""), grok.New("")} {

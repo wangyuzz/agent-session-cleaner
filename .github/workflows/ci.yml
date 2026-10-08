@@ -46,8 +46,8 @@ jobs:
 
       # The runner has no agent installed and no session directories, which is
       # exactly the environment the suite is written to pass in.
-      - name: Test
-        run: go test ./...
+      - name: Test with race detector
+        run: go test -race ./...
 
   windows:
     name: Windows

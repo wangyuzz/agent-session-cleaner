@@ -210,6 +210,7 @@ var chinese = map[Key]string{
 	CLICodexHome:             "Codex 会话数据目录（默认：$CODEX_HOME 或 ~/.codex）",
 	CLICodexBin:              "Codex 可执行文件（默认：$ASC_CODEX_BIN、Windows npm 原生二进制或 PATH 中的 codex）",
 	CLICodexConcurrency:      "Codex 同时执行修改的最大数量（默认：$ASC_CODEX_CONCURRENCY 或 4）",
+	CLIExportDir:             "Markdown 导出的已有目录（默认：$ASC_EXPORT_DIR 或当前工作目录）",
 	CLIClaudeHome:            "Claude Code 会话数据目录（默认：$CLAUDE_CONFIG_DIR 或 ~/.claude）",
 	CLIOpenCodeHome:          "OpenCode 会话数据目录，目录名必须为 opencode（默认：$XDG_DATA_HOME/opencode 或 ~/.local/share/opencode）",
 	CLIPiHome:                "Pi Agent 数据目录（默认：$PI_CODING_AGENT_DIR 或 ~/.pi/agent）",
